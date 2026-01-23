@@ -1,4 +1,3 @@
-import DOMPurify from 'isomorphic-dompurify';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -7,25 +6,6 @@ import { twMerge } from 'tailwind-merge';
  */
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
-}
-
-/**
- * Sanitizes HTML content for safe rendering
- * Allows links, images, and basic formatting from Teamup
- */
-export function sanitizeHTML(html: string | null): string {
-  if (!html) return '';
-
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
-      'p', 'br', 'hr', 'span', 'div', 'strong', 'b', 'em', 'i', 'u',
-      'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'img', 'blockquote'
-    ],
-    ALLOWED_ATTR: [
-      'href', 'target', 'rel', 'src', 'alt', 'class', 'style', 'width', 'height'
-    ],
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-  });
 }
 
 /**

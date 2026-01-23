@@ -1,6 +1,7 @@
 'use client';
 
-import { sanitizeHTML } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import DOMPurify from 'dompurify';
 
 interface InstructionsSectionProps {
   html: string | null;
@@ -11,6 +12,23 @@ interface InstructionsSectionProps {
  * Preserves links, images, and formatting
  */
 export default function InstructionsSection({ html }: InstructionsSectionProps) {
+  const [cleanHTML, setCleanHTML] = useState<string>('');
+
+  useEffect(() => {
+    if (html && typeof window !== 'undefined') {
+      const sanitized = DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: [
+          'p', 'br', 'hr', 'span', 'div', 'strong', 'b', 'em', 'i', 'u',
+          'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'img', 'blockquote'
+        ],
+        ALLOWED_ATTR: [
+          'href', 'target', 'rel', 'src', 'alt', 'class', 'style', 'width', 'height'
+        ],
+      });
+      setCleanHTML(sanitized);
+    }
+  }, [html]);
+
   if (!html) {
     return (
       <div className="text-gray-500 text-center py-8">
@@ -19,7 +37,13 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
     );
   }
 
-  const cleanHTML = sanitizeHTML(html);
+  if (!cleanHTML) {
+    return (
+      <div className="text-gray-400 text-center py-4">
+        Cargando instrucciones...
+      </div>
+    );
+  }
 
   return (
     <div className="instructions-content">
