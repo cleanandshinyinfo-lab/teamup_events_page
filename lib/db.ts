@@ -1,21 +1,27 @@
 import { Pool } from 'pg';
 import { Event } from './types';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('Missing DATABASE_URL');
-}
+let pool: Pool | null = null;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+function getPool(): Pool {
+  if (!pool) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('Missing DATABASE_URL');
+    }
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
+  }
+  return pool;
+}
 
 /**
  * Fetches a single event by its Teamup ID from Glide.recent_contracts
  */
 export async function getEventById(eventId: string): Promise<Event | null> {
   try {
-    const result = await pool.query(
+    const result = await getPool().query(
       `SELECT
         teamup_event_id,
         client_name,
