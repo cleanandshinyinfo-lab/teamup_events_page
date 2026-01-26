@@ -16,7 +16,12 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
 
   useEffect(() => {
     if (html && typeof window !== 'undefined') {
-      const sanitized = DOMPurify.sanitize(html, {
+      // Remove "Pedir este servicio" section
+      let filtered = html.replace(/<p>.*?:point_right:.*?Pedir este servicio.*?<\/p>/gi, '');
+      // Also remove the <hr> before it if exists
+      filtered = filtered.replace(/<hr>\s*$/gi, '');
+
+      const sanitized = DOMPurify.sanitize(filtered, {
         ALLOWED_TAGS: [
           'p', 'br', 'hr', 'span', 'div', 'strong', 'b', 'em', 'i', 'u',
           'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'img', 'blockquote'
