@@ -16,10 +16,15 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
 
   useEffect(() => {
     if (html && typeof window !== 'undefined') {
-      // Remove "Pedir este servicio" section
-      let filtered = html.replace(/<p>.*?:point_right:.*?Pedir este servicio.*?<\/p>/gi, '');
-      // Also remove the <hr> before it if exists
-      filtered = filtered.replace(/<hr>\s*$/gi, '');
+      // Remove "Pedir este servicio" section - multiple patterns to catch all variations
+      let filtered = html;
+      // Remove the entire paragraph with "Pedir este servicio"
+      filtered = filtered.replace(/<p[^>]*>.*?:point_right:.*?Pedir este servicio.*?<\/p>/gis, '');
+      // Also catch cases where it's wrapped differently
+      filtered = filtered.replace(/<p[^>]*>.*?Pedir este servicio.*?<\/p>/gis, '');
+      // Remove any trailing <hr> tags
+      filtered = filtered.replace(/<hr[^>]*>\s*$/gi, '');
+      filtered = filtered.replace(/<hr[^>]*>\s*$/gi, '');
 
       const sanitized = DOMPurify.sanitize(filtered, {
         ALLOWED_TAGS: [
