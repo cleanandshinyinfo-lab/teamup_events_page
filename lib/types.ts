@@ -15,6 +15,8 @@ export interface Event {
   start_dt: string | null;
   /** Event end date and time with timezone */
   end_date: string | null;
+  /** Pre-formatted Spanish date from v_contracts_assigned_active */
+  start_date_teamup_es: string | null;
   /** Duration in hours as string (e.g., "3") */
   duration_hours: string | null;
   /** Type of cleaning service */

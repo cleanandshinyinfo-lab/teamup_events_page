@@ -16,15 +16,14 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
 
   useEffect(() => {
     if (html && typeof window !== 'undefined') {
-      // Remove "Pedir este servicio" section - multiple patterns to catch all variations
+      // Remove "Pedir este servicio" section and preceding <hr>
       let filtered = html;
-      // Remove the entire paragraph with "Pedir este servicio"
-      filtered = filtered.replace(/<p[^>]*>.*?:point_right:.*?Pedir este servicio.*?<\/p>/gis, '');
-      // Also catch cases where it's wrapped differently
-      filtered = filtered.replace(/<p[^>]*>.*?Pedir este servicio.*?<\/p>/gis, '');
-      // Remove any trailing <hr> tags
-      filtered = filtered.replace(/<hr[^>]*>\s*$/gi, '');
-      filtered = filtered.replace(/<hr[^>]*>\s*$/gi, '');
+      // Remove <hr> followed by the "Pedir este servicio" paragraph
+      filtered = filtered.replace(/<hr[^>]*>[\s\S]*?<p[^>]*>[\s\S]*?Pedir este servicio[\s\S]*?<\/p>/gi, '');
+      // Remove standalone paragraph with "Pedir este servicio" (with emoji 👉 or :point_right:)
+      filtered = filtered.replace(/<p[^>]*>[\s\S]*?(?:👉|:point_right:)[\s\S]*?Pedir este servicio[\s\S]*?<\/p>/gi, '');
+      // Catch any remaining "Pedir este servicio" paragraphs
+      filtered = filtered.replace(/<p[^>]*>[\s\S]*?Pedir este servicio[\s\S]*?<\/p>/gi, '');
 
       const sanitized = DOMPurify.sanitize(filtered, {
         ALLOWED_TAGS: [

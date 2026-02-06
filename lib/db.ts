@@ -26,21 +26,24 @@ export async function getEventById(eventId: string): Promise<Event | null> {
   try {
     const result = await getPool().query(
       `SELECT
-        teamup_event_id,
-        client_name,
-        address,
-        city,
-        start_dt,
-        end_date,
-        duration_hours,
-        cleaning_type,
-        frequency,
-        requires_vacuum,
-        photos_required,
-        description_html,
-        description
-      FROM "Glide"."recent_contracts"
-      WHERE teamup_event_id = $1
+        rc.teamup_event_id,
+        rc.client_name,
+        rc.address,
+        rc.city,
+        rc.start_dt,
+        rc.end_date,
+        v.start_date_teamup_es,
+        rc.duration_hours,
+        rc.cleaning_type,
+        rc.frequency,
+        rc.requires_vacuum,
+        rc.photos_required,
+        rc.description_html,
+        rc.description
+      FROM "Glide"."recent_contracts" rc
+      LEFT JOIN "Glide"."v_contracts_assigned_active" v
+        ON rc.teamup_event_id = v.teamup_event_id
+      WHERE rc.teamup_event_id = $1
       LIMIT 1`,
       [eventId]
     );
