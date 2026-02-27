@@ -9,15 +9,17 @@ import {
 } from '@/lib/utils';
 import InfoBox from './InfoBox';
 import InstructionsSection from './InstructionsSection';
+import AcceptDeclineSection from './AcceptDeclineSection';
 
 interface EventDetailsProps {
   event: Event;
+  token?: string;
 }
 
 /**
  * Main component displaying all event details
  */
-export default function EventDetails({ event }: EventDetailsProps) {
+export default function EventDetails({ event, token }: EventDetailsProps) {
   const cityName = getCityDisplayName(event.city);
   const cityBadge = getCityBadge(event.city);
 
@@ -92,6 +94,9 @@ export default function EventDetails({ event }: EventDetailsProps) {
               </h2>
               <InstructionsSection html={event.description_html} />
             </div>
+
+            {/* Accept / Decline — only shown when a valid invitation token is present */}
+            {token && <AcceptDeclineSection token={token} />}
           </div>
 
           {/* Footer */}

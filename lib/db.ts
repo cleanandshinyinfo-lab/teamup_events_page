@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { Event } from './types';
+import { Event, Invitation } from './types';
 
 let pool: Pool | null = null;
 
@@ -57,4 +57,41 @@ export async function getEventById(eventId: string): Promise<Event | null> {
     console.error('Database error:', error);
     return null;
   }
+}
+
+/**
+ * Fetches an invitation by its token
+ */
+export async function getInvitationByToken(token: string): Promise<Invitation | null> {
+  try {
+    const result = await getPool().query(
+      `SELECT id, token, teamup_event_id, cleaner_name, cleaner_subcalendar_id,
+              cleaner_genero, status, sent_at, responded_at, assign_result
+       FROM public.cleaner_invitations
+       WHERE token = $1
+       LIMIT 1`,
+      [token]
+    );
+    if (result.rows.length === 0) return null;
+    return result.rows[0] as Invitation;
+  } catch (error) {
+    console.error('DB getInvitationByToken error:', error);
+    return null;
+  }
+}
+
+/**
+ * Updates the invitation status after cleaner responds
+ */
+export async function respondToInvitation(
+  token: string,
+  status: 'accepted' | 'declined',
+  assignResult?: Record<string, unknown>
+): Promise<void> {
+  await getPool().query(
+    `UPDATE public.cleaner_invitations
+     SET status = $1, responded_at = NOW(), assign_result = $2
+     WHERE token = $3`,
+    [status, assignResult ? JSON.stringify(assignResult) : null, token]
+  );
 }

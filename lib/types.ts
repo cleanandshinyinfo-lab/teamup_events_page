@@ -1,3 +1,16 @@
+export interface Invitation {
+  id: string;
+  token: string;
+  teamup_event_id: string;
+  cleaner_name: string;
+  cleaner_subcalendar_id: string;
+  cleaner_genero: string | null;
+  status: 'pending' | 'accepted' | 'declined';
+  sent_at: string;
+  responded_at: string | null;
+  assign_result: Record<string, unknown> | null;
+}
+
 /**
  * Event interface representing a cleaning event from Supabase
  * Schema: Glide, Table: contracts

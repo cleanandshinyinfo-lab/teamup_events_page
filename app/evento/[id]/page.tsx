@@ -5,6 +5,7 @@ import EventDetails from '@/components/EventDetails';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ token?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -23,15 +24,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function EventPage({ params }: PageProps) {
+export default async function EventPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { token } = await searchParams;
   const event = await getEventById(id);
 
   if (!event) {
     notFound();
   }
 
-  return <EventDetails event={event} />;
+  return <EventDetails event={event} token={token} />;
 }
 
-export const revalidate = 300;
+export const revalidate = 0;
