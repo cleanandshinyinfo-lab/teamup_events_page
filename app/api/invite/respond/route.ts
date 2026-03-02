@@ -46,19 +46,30 @@ export async function POST(req: NextRequest) {
       const row = assignResult.rows[0] ?? {};
       await respondToInvitation(token, 'accepted', row);
 
-      // Notificación Slack via n8n (fire-and-forget — n8n en Hostinger hace la query y envía)
-      const n8nSlackUrl = process.env.N8N_SLACK_WEBHOOK_URL;
-      if (n8nSlackUrl) {
-        fetch(n8nSlackUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            teamup_event_id: invitation.teamup_event_id,
-            cleaner_name: invitation.cleaner_name,
-            assign_ok: row.ok ?? false,
-            assign_message: row.message || '',
-          }),
-        }).catch((err) => console.error('[N8N_SLACK] error:', err));
+      // Notificación webhook (n8n recomendado; mantiene compatibilidad con variable legacy).
+      const n8nSlackUrl = process.env.N8N_SLACK_WEBHOOK_URL || process.env.SLACK_WEBHOOK_INVITATIONS;
+      if (!n8nSlackUrl) {
+        console.warn('[N8N_SLACK] webhook URL no configurada (N8N_SLACK_WEBHOOK_URL)');
+      } else {
+        try {
+          const webhookRes = await fetch(n8nSlackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              teamup_event_id: invitation.teamup_event_id,
+              cleaner_name: invitation.cleaner_name,
+              assign_ok: row.ok ?? false,
+              assign_message: row.message || '',
+            }),
+          });
+
+          if (!webhookRes.ok) {
+            const responseBody = await webhookRes.text();
+            console.error('[N8N_SLACK] webhook HTTP error:', webhookRes.status, responseBody);
+          }
+        } catch (err) {
+          console.error('[N8N_SLACK] error:', err);
+        }
       }
 
       return NextResponse.json({
