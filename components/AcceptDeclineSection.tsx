@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-type SectionStatus = 'idle' | 'loading' | 'accepted' | 'declined' | 'already_responded' | 'error';
+type SectionStatus = 'idle' | 'loading' | 'accepted' | 'assign_failed' | 'declined' | 'already_responded' | 'error';
 
 interface AcceptDeclineSectionProps {
   token: string;
@@ -48,6 +48,11 @@ export default function AcceptDeclineSection({ token }: AcceptDeclineSectionProp
         return;
       }
 
+      if (action === 'accept' && data.assign_ok === false) {
+        setStatus('assign_failed');
+        setMessage(data.message || 'No se pudo asignar este servicio.');
+        return;
+      }
       setStatus(action === 'accept' ? 'accepted' : 'declined');
       setMessage(data.message || '');
     } catch {
@@ -85,10 +90,20 @@ export default function AcceptDeclineSection({ token }: AcceptDeclineSectionProp
     );
   }
 
+  if (status === 'assign_failed') {
+    return (
+      <div className="mt-6 p-6 bg-orange-50 rounded-xl border border-orange-200 text-center space-y-2">
+        <div className="text-3xl">⚠️</div>
+        <p className="text-orange-800 font-semibold text-lg">No se pudo asignar este servicio</p>
+        <p className="text-orange-700 text-sm">El equipo ha sido notificado y buscará una solución. Gracias por tu respuesta.</p>
+      </div>
+    );
+  }
+
   if (status === 'error') {
     return (
       <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-200 text-center space-y-3">
-        <p className="text-red-700 font-medium">{message}</p>
+        <p className="text-red-700 font-medium">No se pudo procesar tu respuesta. Por favor intenta de nuevo.</p>
         <button
           onClick={() => setStatus('idle')}
           className="text-sm text-red-600 underline"
