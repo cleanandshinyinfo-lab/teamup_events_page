@@ -157,8 +157,8 @@ export async function POST(req: NextRequest) {
       const row = assignResult.rows[0] ?? {};
       await respondToInvitation(token, 'accepted', row);
 
-      // Slack notification (non-blocking)
-      sendSlackNotification(invitation, row).catch((err) =>
+      // Slack notification (awaited — Vercel kills fire-and-forget before completion)
+      await sendSlackNotification(invitation, row).catch((err) =>
         console.error('[SLACK] notification error:', err)
       );
 
