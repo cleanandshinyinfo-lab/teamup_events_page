@@ -6,11 +6,13 @@ type SectionStatus = 'idle' | 'loading' | 'accepted' | 'assign_failed' | 'declin
 
 interface AcceptDeclineSectionProps {
   token: string;
+  eventId: string;
 }
 
-export default function AcceptDeclineSection({ token }: AcceptDeclineSectionProps) {
+export default function AcceptDeclineSection({ token, eventId }: AcceptDeclineSectionProps) {
   const [status, setStatus] = useState<SectionStatus>('idle');
   const [message, setMessage] = useState('');
+  const [lastAction, setLastAction] = useState<'accept' | 'decline' | null>(null);
 
   // Al montar, verificar si ya fue respondida
   useEffect(() => {
@@ -27,6 +29,7 @@ export default function AcceptDeclineSection({ token }: AcceptDeclineSectionProp
   }, [token]);
 
   const respond = async (action: 'accept' | 'decline') => {
+    setLastAction(action);
     setStatus('loading');
     try {
       const res = await fetch('/api/invite/respond', {
@@ -90,26 +93,30 @@ export default function AcceptDeclineSection({ token }: AcceptDeclineSectionProp
     );
   }
 
-  if (status === 'assign_failed') {
+  if (status === 'assign_failed' || status === 'error') {
+    const isAssignFailed = status === 'assign_failed';
+    const actionLabel = lastAction === 'accept' ? 'Aceptar servicio' : 'Rechazar servicio';
     return (
-      <div className="mt-6 p-6 bg-orange-50 rounded-xl border border-orange-200 text-center space-y-2">
-        <div className="text-3xl">⚠️</div>
-        <p className="text-orange-800 font-semibold text-lg">No se pudo asignar este servicio</p>
-        <p className="text-orange-700 text-sm">El equipo ha sido notificado y buscará una solución. Gracias por tu respuesta.</p>
-      </div>
-    );
-  }
-
-  if (status === 'error') {
-    return (
-      <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-200 text-center space-y-3">
-        <p className="text-red-700 font-medium">No se pudo procesar tu respuesta. Por favor intenta de nuevo.</p>
-        <button
-          onClick={() => setStatus('idle')}
-          className="text-sm text-red-600 underline"
-        >
-          Intentar de nuevo
-        </button>
+      <div className={`mt-6 p-6 rounded-xl border space-y-3 ${isAssignFailed ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200'}`}>
+        <div className="text-3xl text-center">{isAssignFailed ? '⚠️' : '❌'}</div>
+        <p className={`font-semibold text-lg text-center ${isAssignFailed ? 'text-orange-800' : 'text-red-800'}`}>
+          {isAssignFailed ? 'No se pudo asignar el servicio' : 'Error al procesar la respuesta'}
+        </p>
+        <div className={`text-sm rounded-lg p-4 space-y-1 ${isAssignFailed ? 'bg-orange-100 text-orange-900' : 'bg-red-100 text-red-900'}`}>
+          {lastAction && (
+            <p><span className="font-semibold">El cleaner intentó:</span> {actionLabel}</p>
+          )}
+          <p><span className="font-semibold">La respuesta del sistema fue:</span> {message || 'Sin mensaje'}</p>
+          <p><span className="font-semibold">ID del servicio:</span> {eventId}</p>
+        </div>
+        <div className="text-center">
+          <button
+            onClick={() => setStatus('idle')}
+            className={`text-sm underline ${isAssignFailed ? 'text-orange-700' : 'text-red-700'}`}
+          >
+            Intentar de nuevo
+          </button>
+        </div>
       </div>
     );
   }

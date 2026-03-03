@@ -96,7 +96,7 @@ export default function EventDetails({ event, token }: EventDetailsProps) {
             </div>
 
             {/* Accept / Decline — only shown when a valid invitation token is present */}
-            {token && <AcceptDeclineSection token={token} />}
+            {token && <AcceptDeclineSection token={token} eventId={event.teamup_event_id} />}
           </div>
 
           {/* Footer */}
