@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 let pool: Pool | null = null;
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate a unique token for this invitation
-    const token = uuidv4();
+    const token = randomUUID();
 
     // Check if invitation already exists
     const existingResult = await getPool().query(
