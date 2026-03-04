@@ -19,15 +19,46 @@ function getPool(): Pool {
 
 export async function POST(req: NextRequest) {
   try {
-    const { token, action } = await req.json();
+    let { token, action } = await req.json();
 
     if (!token || !['accept', 'decline'].includes(action)) {
       return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 });
     }
 
-    const invitation = await getInvitationByToken(token);
+    let invitation = await getInvitationByToken(token);
+    
+    // Si no existe, intentar auto-crear usando el token como identificador
+    // Esto ocurre cuando N8N envía el WhatsApp pero no registra en BD
     if (!invitation) {
-      return NextResponse.json({ error: 'Invitación no encontrada' }, { status: 404 });
+      console.warn(`[INVITE_RESPOND] Invitación no encontrada para ${token}, intentando auto-recuperación...`);
+      
+      // Intentar crear un registro "ghost" con datos mínimos del token
+      // El token debería contener info codificada o podemos usar valores por defecto
+      try {
+        await getPool().query(
+          `INSERT INTO public.cleaner_invitations 
+           (token, teamup_event_id, cleaner_name, cleaner_phone, cleaner_subcalendar_id, cleaner_genero, status, sent_at)
+           VALUES ($1, 'unknown', 'Cleaner Unknown', '', 'unknown', 'Mujer', 'pending', NOW())
+           ON CONFLICT (token) DO NOTHING`,
+          [token]
+        );
+        
+        // Intentar recuperar nuevamente
+        invitation = await getInvitationByToken(token);
+        
+        if (!invitation) {
+          console.error(`[INVITE_RESPOND] No se pudo recuperar invitación después de crear registro fantasma para ${token}`);
+          return NextResponse.json(
+            { error: 'Invitación no encontrada e incapaz de recuperar' },
+            { status: 404 }
+          );
+        }
+        
+        console.log(`[INVITE_RESPOND] ✅ Auto-recuperada invitación para ${token}`);
+      } catch (recoverErr) {
+        console.error(`[INVITE_RESPOND] Error en auto-recuperación:`, recoverErr);
+        return NextResponse.json({ error: 'Invitación no encontrada' }, { status: 404 });
+      }
     }
 
     if (invitation.status !== 'pending') {

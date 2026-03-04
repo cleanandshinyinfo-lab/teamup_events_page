@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-type SectionStatus = 'idle' | 'loading' | 'accepted' | 'assign_failed' | 'declined' | 'already_responded' | 'error';
+type SectionStatus = 'idle' | 'loading' | 'accepted' | 'assign_failed' | 'declined' | 'already_responded' | 'already_assigned' | 'error';
 
 interface AcceptDeclineSectionProps {
   token: string;
@@ -52,8 +52,14 @@ export default function AcceptDeclineSection({ token, eventId }: AcceptDeclineSe
       }
 
       if (action === 'accept' && data.assign_ok === false) {
-        setStatus('assign_failed');
-        setMessage(data.message || 'No se pudo asignar este servicio.');
+        // Detectar si el error es porque el servicio ya fue asignado a otro cleaner
+        const isAlreadyAssigned = data.message && data.message.toLowerCase().includes('asignado');
+        if (isAlreadyAssigned) {
+          setStatus('already_assigned');
+        } else {
+          setStatus('assign_failed');
+          setMessage(data.message || 'No se pudo asignar este servicio.');
+        }
         return;
       }
       setStatus(action === 'accept' ? 'accepted' : 'declined');
@@ -69,6 +75,16 @@ export default function AcceptDeclineSection({ token, eventId }: AcceptDeclineSe
       <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
         <p className="text-gray-700 font-medium">{message}</p>
         <p className="text-sm text-gray-500 mt-1">Si tienes alguna pregunta, contacta al equipo.</p>
+      </div>
+    );
+  }
+
+  if (status === 'already_assigned') {
+    return (
+      <div className="mt-6 p-6 bg-blue-50 rounded-xl border border-blue-200 text-center space-y-2">
+        <div className="text-4xl">✨</div>
+        <p className="text-blue-900 font-semibold text-lg">Otro cleaner ya tomó este servicio</p>
+        <p className="text-blue-700 text-sm">¡Gracias por tu disponibilidad! Estamos seguros de que pronto habrá más servicios para ti.</p>
       </div>
     );
   }
@@ -96,6 +112,7 @@ export default function AcceptDeclineSection({ token, eventId }: AcceptDeclineSe
   if (status === 'assign_failed' || status === 'error') {
     const isAssignFailed = status === 'assign_failed';
     const actionLabel = lastAction === 'accept' ? 'Aceptar servicio' : 'Rechazar servicio';
+    
     return (
       <div className={`mt-6 p-6 rounded-xl border space-y-3 ${isAssignFailed ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200'}`}>
         <div className="text-3xl text-center">{isAssignFailed ? '⚠️' : '❌'}</div>
