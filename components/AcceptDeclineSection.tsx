@@ -92,9 +92,10 @@ export default function AcceptDeclineSection({ token, eventId }: AcceptDeclineSe
   if (status === 'accepted') {
     return (
       <div className="mt-6 p-6 bg-green-50 rounded-xl border border-green-200 text-center space-y-2">
-        <div className="text-4xl">🎉</div>
+        <div className="text-4xl">✅</div>
         <p className="text-green-800 font-semibold text-lg">¡Servicio aceptado!</p>
         <p className="text-green-700 text-sm">{message || 'El equipo ha sido notificado. ¡Gracias!'}</p>
+        <p className="text-xs text-green-600 mt-3">Este servicio desaparecerá de la lista en unos segundos...</p>
       </div>
     );
   }
