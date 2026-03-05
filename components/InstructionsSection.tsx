@@ -38,6 +38,15 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
     }
   }, [html]);
 
+  useEffect(() => {
+    if (cleanHTML && typeof window !== 'undefined' && window.location.hash === '#instrucciones') {
+      const el = document.getElementById('instrucciones');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [cleanHTML]);
+
   if (!html) {
     return (
       <div className="text-gray-500 text-center py-8">
