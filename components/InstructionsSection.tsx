@@ -12,7 +12,7 @@ interface InstructionsSectionProps {
  * Preserves links, images, and formatting
  */
 export default function InstructionsSection({ html }: InstructionsSectionProps) {
-  const [cleanHTML, setCleanHTML] = useState<string>('');
+  const [cleanHTML, setCleanHTML] = useState<string | null>(null);
 
   useEffect(() => {
     if (html && typeof window !== 'undefined') {
@@ -39,7 +39,7 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
   }, [html]);
 
   useEffect(() => {
-    if (cleanHTML && typeof window !== 'undefined' && window.location.hash === '#instrucciones') {
+    if (cleanHTML !== null && typeof window !== 'undefined' && window.location.hash === '#instrucciones') {
       const el = document.getElementById('instrucciones');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth' });
@@ -55,10 +55,18 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
     );
   }
 
-  if (!cleanHTML) {
+  if (cleanHTML === null) {
     return (
       <div className="text-gray-400 text-center py-4">
         Cargando instrucciones...
+      </div>
+    );
+  }
+
+  if (cleanHTML === '') {
+    return (
+      <div className="text-gray-500 text-center py-8">
+        No hay instrucciones especiales.
       </div>
     );
   }
