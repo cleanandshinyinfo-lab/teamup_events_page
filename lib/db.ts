@@ -32,6 +32,8 @@ export async function getEventById(eventId: string): Promise<Event | null> {
         rc.city,
         rc.start_dt,
         rc.end_date,
+        rc.start_teamup_local::text,
+        rc.end_teamup_local::text,
         v.start_date_teamup_es,
         rc.duration_hours,
         rc.cleaning_type,

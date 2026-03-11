@@ -28,6 +28,10 @@ export interface Event {
   start_dt: string | null;
   /** Event end date and time with timezone */
   end_date: string | null;
+  /** Local start datetime from recent_contracts */
+  start_teamup_local: string | null;
+  /** Local end datetime from recent_contracts */
+  end_teamup_local: string | null;
   /** Pre-formatted Spanish date from v_contracts_assigned_active */
   start_date_teamup_es: string | null;
   /** Duration in hours as string (e.g., "3") */

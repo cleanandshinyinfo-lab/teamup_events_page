@@ -57,7 +57,7 @@ export default function EventDetails({ event, token }: EventDetailsProps) {
               <InfoBox
                 icon="📅"
                 label="Fecha y hora"
-                value={event.start_date_teamup_es || formatDate(event.start_dt)}
+                value={event.start_teamup_local || event.start_date_teamup_es || formatDate(event.start_dt)}
               />
               <InfoBox
                 icon="⏱️"
