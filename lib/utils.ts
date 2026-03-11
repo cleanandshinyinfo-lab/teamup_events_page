@@ -30,6 +30,30 @@ export function formatDate(dateString: string | null): string {
 }
 
 /**
+ * Formats a raw DB timestamp ("2026-03-16 08:00:00") to "lunes 16 de marzo de 2026 - 08:00"
+ * without any timezone conversion
+ */
+export function formatLocalDateTime(raw: string | null): string {
+  if (!raw) return 'No especificado';
+  const match = String(raw).match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);
+  if (!match) return raw;
+  const [, year, month, day, time] = match;
+  const days   = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const d = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  return `${days[d.getUTCDay()]} ${Number(day)} de ${months[Number(month) - 1]} de ${year} - ${time}`;
+}
+
+/**
+ * Extracts "HH:MM" from a raw DB timestamp string
+ */
+export function extractLocalTime(raw: string | null): string | null {
+  if (!raw) return null;
+  const match = String(raw).match(/[T ](\d{2}:\d{2})/);
+  return match ? match[1] : null;
+}
+
+/**
  * Formats duration hours for display
  */
 export function formatDuration(hours: string | null): string {
