@@ -1,8 +1,7 @@
 import { Event } from '@/lib/types';
 import {
   formatDate,
-  formatLocalDateTime,
-  extractLocalTime,
+  formatLocalDateTimeRange,
   formatDuration,
   getCityDisplayName,
   getCityBadge,
@@ -58,13 +57,8 @@ export default function EventDetails({ event, token }: EventDetailsProps) {
               />
               <InfoBox
                 icon="📅"
-                label="Fecha y hora inicio"
-                value={formatLocalDateTime(event.start_teamup_local) || event.start_date_teamup_es || formatDate(event.start_dt)}
-              />
-              <InfoBox
-                icon="🏁"
-                label="Hora fin"
-                value={extractLocalTime(event.end_teamup_local)}
+                label="Fecha y hora"
+                value={formatLocalDateTimeRange(event.start_teamup_local, event.end_teamup_local) || event.start_date_teamup_es || formatDate(event.start_dt)}
               />
               <InfoBox
                 icon="⏱️"

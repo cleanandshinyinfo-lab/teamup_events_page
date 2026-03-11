@@ -29,24 +29,49 @@ export function formatDate(dateString: string | null): string {
   }
 }
 
-/**
- * Formats a raw DB timestamp ("2026-03-16 08:00:00") to "lunes 16 de marzo de 2026 - 08:00"
- * without any timezone conversion
- */
-export function formatLocalDateTime(raw: string | null): string {
-  if (!raw) return 'No especificado';
-  const match = String(raw).match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);
-  if (!match) return raw;
-  const [, year, month, day, time] = match;
-  const days   = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  const d = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
-  return `${days[d.getUTCDay()]} ${Number(day)} de ${months[Number(month) - 1]} de ${year} - ${time}`;
+const SHORT_DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function parseLocalTimestamp(raw: string | null): { year: number; month: number; day: number; h: number; m: number } | null {
+  if (!raw) return null;
+  const match = String(raw).match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!match) return null;
+  return {
+    year:  Number(match[1]),
+    month: Number(match[2]),
+    day:   Number(match[3]),
+    h:     Number(match[4]),
+    m:     Number(match[5]),
+  };
+}
+
+function to12h(h: number, m: number): string {
+  const period = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 || 12;
+  return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
 }
 
 /**
- * Extracts "HH:MM" from a raw DB timestamp string
+ * Formats start + end timestamps as "Fri Mar 13 2026, 8:30am - 12:30pm"
+ * without any timezone conversion
  */
+export function formatLocalDateTimeRange(start: string | null, end: string | null): string {
+  const s = parseLocalTimestamp(start);
+  if (!s) return 'No especificado';
+  const d = new Date(Date.UTC(s.year, s.month - 1, s.day));
+  const datePart = `${SHORT_DAYS[d.getUTCDay()]} ${SHORT_MONTHS[s.month - 1]} ${s.day} ${s.year}`;
+  const startTime = to12h(s.h, s.m);
+  const e = parseLocalTimestamp(end);
+  const endTime = e ? to12h(e.h, e.m) : null;
+  return endTime ? `${datePart}, ${startTime} - ${endTime}` : `${datePart}, ${startTime}`;
+}
+
+/** @deprecated use formatLocalDateTimeRange */
+export function formatLocalDateTime(raw: string | null): string {
+  return formatLocalDateTimeRange(raw, null);
+}
+
+/** @deprecated use formatLocalDateTimeRange */
 export function extractLocalTime(raw: string | null): string | null {
   if (!raw) return null;
   const match = String(raw).match(/[T ](\d{2}:\d{2})/);
