@@ -41,7 +41,8 @@ export async function getEventById(eventId: string): Promise<Event | null> {
         rc.requires_vacuum,
         rc.photos_required,
         rc.description_html,
-        rc.description
+        rc.description,
+        rc."u8M9e" AS notas_mascotas
       FROM "Glide"."recent_contracts" rc
       LEFT JOIN "Glide"."v_contracts_assigned_active" v
         ON rc.teamup_event_id = v.teamup_event_id

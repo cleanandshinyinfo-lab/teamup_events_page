@@ -48,4 +48,6 @@ export interface Event {
   description_html: string | null;
   /** Plain text description (backup) */
   description: string | null;
+  /** Pet notes from Glide (column u8M9e) */
+  notas_mascotas: string | null;
 }

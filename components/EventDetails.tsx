@@ -86,6 +86,13 @@ export default function EventDetails({ event, token }: EventDetailsProps) {
                   value={formatPhotosRequired(event.photos_required)}
                 />
               )}
+              {event.notas_mascotas && (
+                <InfoBox
+                  icon="🐾"
+                  label="Mascotas"
+                  value={event.notas_mascotas}
+                />
+              )}
             </div>
 
             {/* Instructions section */}
