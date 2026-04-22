@@ -1,69 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import DOMPurify from 'dompurify';
+import { useEffect } from 'react';
 
 interface InstructionsSectionProps {
   html: string | null;
 }
 
 /**
- * Renders sanitized HTML instructions from Teamup
- * Preserves links, images, and formatting
+ * Renders pre-sanitized HTML instructions (sanitization happens server-side
+ * via lib/sanitize.ts before reaching this component).
  */
 export default function InstructionsSection({ html }: InstructionsSectionProps) {
-  const [cleanHTML, setCleanHTML] = useState<string | null>(null);
-
   useEffect(() => {
-    if (html && typeof window !== 'undefined') {
-      // Remove "Pedir este servicio" section and preceding <hr>
-      let filtered = html;
-      // Remove <hr> followed by the "Pedir este servicio" paragraph
-      filtered = filtered.replace(/<hr[^>]*>[\s\S]*?<p[^>]*>[\s\S]*?Pedir este servicio[\s\S]*?<\/p>/gi, '');
-      // Remove standalone paragraph with "Pedir este servicio" (with emoji 👉 or :point_right:)
-      filtered = filtered.replace(/<p[^>]*>[\s\S]*?(?:👉|:point_right:)[\s\S]*?Pedir este servicio[\s\S]*?<\/p>/gi, '');
-      // Catch any remaining "Pedir este servicio" paragraphs
-      filtered = filtered.replace(/<p[^>]*>[\s\S]*?Pedir este servicio[\s\S]*?<\/p>/gi, '');
-
-      const sanitized = DOMPurify.sanitize(filtered, {
-        ALLOWED_TAGS: [
-          'p', 'br', 'hr', 'span', 'div', 'strong', 'b', 'em', 'i', 'u',
-          'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'img', 'blockquote'
-        ],
-        ALLOWED_ATTR: [
-          'href', 'target', 'rel', 'src', 'alt', 'class', 'style', 'width', 'height'
-        ],
-      });
-      setCleanHTML(sanitized);
-    }
-  }, [html]);
-
-  useEffect(() => {
-    if (cleanHTML !== null && typeof window !== 'undefined' && window.location.hash === '#instrucciones') {
+    if (html && typeof window !== 'undefined' && window.location.hash === '#instrucciones') {
       const el = document.getElementById('instrucciones');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth' });
       }
     }
-  }, [cleanHTML]);
+  }, [html]);
 
   if (!html) {
-    return (
-      <div className="text-gray-500 text-center py-8">
-        No hay instrucciones especiales.
-      </div>
-    );
-  }
-
-  if (cleanHTML === null) {
-    return (
-      <div className="text-gray-400 text-center py-4">
-        Cargando instrucciones...
-      </div>
-    );
-  }
-
-  if (cleanHTML === '') {
     return (
       <div className="text-gray-500 text-center py-8">
         No hay instrucciones especiales.
@@ -121,7 +78,7 @@ export default function InstructionsSection({ html }: InstructionsSectionProps) 
         }
       `}</style>
 
-      <div dangerouslySetInnerHTML={{ __html: cleanHTML }} />
+      <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }

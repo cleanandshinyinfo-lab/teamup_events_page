@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getEventById, getInvitationSnapshot } from '@/lib/db';
+import { sanitizeInstructionsHTML } from '@/lib/sanitize';
 import EventDetails from '@/components/EventDetails';
 
 interface PageProps {
@@ -36,7 +37,12 @@ export default async function EventPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  return <EventDetails event={event} token={token} initialInvitation={invitation} />;
+  const safeEvent = {
+    ...event,
+    description_html: sanitizeInstructionsHTML(event.description_html),
+  };
+
+  return <EventDetails event={safeEvent} token={token} initialInvitation={invitation} />;
 }
 
 export const revalidate = 0;
