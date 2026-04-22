@@ -134,7 +134,26 @@ export async function GET(req: NextRequest) {
     const invitation = await getInvitationByToken(token);
     if (!invitation) return NextResponse.json({ status: 'not_found' }, { status: 404 });
 
-    return NextResponse.json({ status: invitation.status, responded_at: invitation.responded_at });
+    // Si esta invitación sigue pendiente, verificar si otro cleaner ya aceptó el mismo evento
+    let serviceTaken = false;
+    if (invitation.status === 'pending') {
+      const otherAccepted = await getPool().query(
+        `SELECT 1 FROM public.cleaner_invitations
+         WHERE teamup_event_id = $1
+           AND status = 'accepted'
+           AND token <> $2
+           AND COALESCE((assign_result->>'ok')::boolean, false) = true
+         LIMIT 1`,
+        [invitation.teamup_event_id, token]
+      );
+      serviceTaken = otherAccepted.rows.length > 0;
+    }
+
+    return NextResponse.json({
+      status: invitation.status,
+      responded_at: invitation.responded_at,
+      service_taken: serviceTaken,
+    });
   } catch (error) {
     console.error('[INVITE_STATUS] error:', error);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });

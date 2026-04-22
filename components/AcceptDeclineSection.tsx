@@ -15,18 +15,24 @@ export default function AcceptDeclineSection({ token, eventId, onAlreadyAssigned
   const [message, setMessage] = useState('');
   const [lastAction, setLastAction] = useState<'accept' | 'decline' | null>(null);
 
-  // Al montar, verificar si ya fue respondida
+  // Al montar, verificar si ya fue respondida o si otro cleaner tomó el servicio
   useEffect(() => {
     async function checkStatus() {
       try {
         const res = await fetch(`/api/invite/respond?token=${encodeURIComponent(token)}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (data.status === 'accepted') { setStatus('already_responded'); setMessage('✅ Ya aceptaste este servicio.'); }
-        if (data.status === 'declined') { setStatus('already_responded'); setMessage('❌ Ya rechazaste este servicio.'); }
+        if (data.status === 'accepted') { setStatus('already_responded'); setMessage('✅ Ya aceptaste este servicio.'); return; }
+        if (data.status === 'declined') { setStatus('already_responded'); setMessage('❌ Ya rechazaste este servicio.'); return; }
+        if (data.service_taken) {
+          setStatus('already_assigned');
+          onAlreadyAssigned?.();
+        }
       } catch { /* silent */ }
     }
     checkStatus();
+    // onAlreadyAssigned intencionalmente omitido: solo queremos chequear al montar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const respond = async (action: 'accept' | 'decline') => {
