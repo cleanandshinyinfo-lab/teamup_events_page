@@ -1,39 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import type { InvitationSnapshot } from '@/lib/db';
 
 type SectionStatus = 'idle' | 'loading' | 'accepted' | 'assign_failed' | 'declined' | 'already_responded' | 'already_assigned' | 'error';
 
 interface AcceptDeclineSectionProps {
   token: string;
   eventId: string;
+  initialInvitation?: InvitationSnapshot | null;
   onAlreadyAssigned?: () => void;
 }
 
-export default function AcceptDeclineSection({ token, eventId, onAlreadyAssigned }: AcceptDeclineSectionProps) {
-  const [status, setStatus] = useState<SectionStatus>('idle');
-  const [message, setMessage] = useState('');
-  const [lastAction, setLastAction] = useState<'accept' | 'decline' | null>(null);
+function deriveInitialState(snapshot?: InvitationSnapshot | null): { status: SectionStatus; message: string } {
+  if (!snapshot) return { status: 'idle', message: '' };
+  if (snapshot.status === 'accepted') return { status: 'already_responded', message: '✅ Ya aceptaste este servicio.' };
+  if (snapshot.status === 'declined') return { status: 'already_responded', message: '❌ Ya rechazaste este servicio.' };
+  if (snapshot.serviceTaken) return { status: 'already_assigned', message: '' };
+  return { status: 'idle', message: '' };
+}
 
-  // Al montar, verificar si ya fue respondida o si otro cleaner tomó el servicio
-  useEffect(() => {
-    async function checkStatus() {
-      try {
-        const res = await fetch(`/api/invite/respond?token=${encodeURIComponent(token)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.status === 'accepted') { setStatus('already_responded'); setMessage('✅ Ya aceptaste este servicio.'); return; }
-        if (data.status === 'declined') { setStatus('already_responded'); setMessage('❌ Ya rechazaste este servicio.'); return; }
-        if (data.service_taken) {
-          setStatus('already_assigned');
-          onAlreadyAssigned?.();
-        }
-      } catch { /* silent */ }
-    }
-    checkStatus();
-    // onAlreadyAssigned intencionalmente omitido: solo queremos chequear al montar
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+export default function AcceptDeclineSection({ token, eventId, initialInvitation, onAlreadyAssigned }: AcceptDeclineSectionProps) {
+  const initial = deriveInitialState(initialInvitation);
+  const [status, setStatus] = useState<SectionStatus>(initial.status);
+  const [message, setMessage] = useState(initial.message);
+  const [lastAction, setLastAction] = useState<'accept' | 'decline' | null>(null);
 
   const respond = async (action: 'accept' | 'decline') => {
     setLastAction(action);

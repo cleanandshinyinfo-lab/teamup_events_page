@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Event } from '@/lib/types';
+import type { InvitationSnapshot } from '@/lib/db';
 import {
   formatDate,
   formatLocalDateTimeRange,
@@ -18,15 +19,18 @@ import AcceptDeclineSection from './AcceptDeclineSection';
 interface EventDetailsProps {
   event: Event;
   token?: string;
+  initialInvitation?: InvitationSnapshot | null;
 }
 
 /**
  * Main component displaying all event details
  */
-export default function EventDetails({ event, token }: EventDetailsProps) {
+export default function EventDetails({ event, token, initialInvitation }: EventDetailsProps) {
   const cityName = getCityDisplayName(event.city);
   const cityBadge = getCityBadge(event.city);
-  const [isUnavailable, setIsUnavailable] = useState(false);
+  const [isUnavailable, setIsUnavailable] = useState(
+    initialInvitation?.status === 'pending' && initialInvitation.serviceTaken
+  );
 
   if (isUnavailable) {
     return (
@@ -128,6 +132,7 @@ export default function EventDetails({ event, token }: EventDetailsProps) {
               <AcceptDeclineSection
                 token={token}
                 eventId={event.teamup_event_id}
+                initialInvitation={initialInvitation}
                 onAlreadyAssigned={() => setIsUnavailable(true)}
               />
             )}

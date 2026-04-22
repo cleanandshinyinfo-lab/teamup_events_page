@@ -86,6 +86,40 @@ export async function getInvitationByToken(token: string): Promise<Invitation | 
 }
 
 /**
+ * Snapshot of an invitation's state for initial render (avoids client-side flash)
+ */
+export interface InvitationSnapshot {
+  status: 'pending' | 'accepted' | 'declined';
+  serviceTaken: boolean;
+}
+
+export async function getInvitationSnapshot(token: string): Promise<InvitationSnapshot | null> {
+  try {
+    const invitation = await getInvitationByToken(token);
+    if (!invitation) return null;
+
+    let serviceTaken = false;
+    if (invitation.status === 'pending') {
+      const result = await getPool().query(
+        `SELECT 1 FROM public.cleaner_invitations
+         WHERE teamup_event_id = $1
+           AND status = 'accepted'
+           AND token <> $2
+           AND COALESCE((assign_result->>'ok')::boolean, false) = true
+         LIMIT 1`,
+        [invitation.teamup_event_id, token]
+      );
+      serviceTaken = result.rows.length > 0;
+    }
+
+    return { status: invitation.status, serviceTaken };
+  } catch (error) {
+    console.error('DB getInvitationSnapshot error:', error);
+    return null;
+  }
+}
+
+/**
  * Updates the invitation status after cleaner responds
  */
 export async function respondToInvitation(

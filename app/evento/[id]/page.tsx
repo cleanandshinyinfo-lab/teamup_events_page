@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getEventById } from '@/lib/db';
+import { getEventById, getInvitationSnapshot } from '@/lib/db';
 import EventDetails from '@/components/EventDetails';
 
 interface PageProps {
@@ -27,13 +27,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function EventPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { token } = await searchParams;
-  const event = await getEventById(id);
+  const [event, invitation] = await Promise.all([
+    getEventById(id),
+    token ? getInvitationSnapshot(token) : Promise.resolve(null),
+  ]);
 
   if (!event) {
     notFound();
   }
 
-  return <EventDetails event={event} token={token} />;
+  return <EventDetails event={event} token={token} initialInvitation={invitation} />;
 }
 
 export const revalidate = 0;
