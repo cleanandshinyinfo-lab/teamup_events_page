@@ -3,7 +3,7 @@ import { Event, Invitation } from './types';
 
 let pool: Pool | null = null;
 
-function getPool(): Pool {
+export function getPool(): Pool {
   if (!pool) {
     if (!process.env.DATABASE_URL) {
       throw new Error('Missing DATABASE_URL');
@@ -95,24 +95,27 @@ export interface InvitationSnapshot {
 
 export async function getInvitationSnapshot(token: string): Promise<InvitationSnapshot | null> {
   try {
-    const invitation = await getInvitationByToken(token);
-    if (!invitation) return null;
-
-    let serviceTaken = false;
-    if (invitation.status === 'pending') {
-      const result = await getPool().query(
-        `SELECT 1 FROM public.cleaner_invitations
-         WHERE teamup_event_id = $1
-           AND status = 'accepted'
-           AND token <> $2
-           AND COALESCE((assign_result->>'ok')::boolean, false) = true
-         LIMIT 1`,
-        [invitation.teamup_event_id, token]
-      );
-      serviceTaken = result.rows.length > 0;
-    }
-
-    return { status: invitation.status, serviceTaken };
+    const result = await getPool().query(
+      `SELECT
+         me.status,
+         CASE
+           WHEN me.status <> 'pending' THEN false
+           ELSE EXISTS (
+             SELECT 1 FROM public.cleaner_invitations o
+             WHERE o.teamup_event_id = me.teamup_event_id
+               AND o.status = 'accepted'
+               AND o.token <> me.token
+               AND COALESCE((o.assign_result->>'ok')::boolean, false) = true
+           )
+         END AS service_taken
+       FROM public.cleaner_invitations me
+       WHERE me.token = $1
+       LIMIT 1`,
+      [token]
+    );
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
+    return { status: row.status, serviceTaken: row.service_taken };
   } catch (error) {
     console.error('DB getInvitationSnapshot error:', error);
     return null;

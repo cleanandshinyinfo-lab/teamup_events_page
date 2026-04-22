@@ -1,64 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getInvitationByToken, respondToInvitation } from '@/lib/db';
-import { Invitation } from '@/lib/types';
-import { Pool } from 'pg';
+import {
+  getInvitationByToken,
+  getInvitationSnapshot,
+  getPool,
+  respondToInvitation,
+} from '@/lib/db';
 
-let pool: Pool | null = null;
-function getPool(): Pool {
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 1,
-    });
+type RespondAction = 'accept' | 'decline';
+type AssignOutcome = 'success' | 'already_assigned' | 'failed';
+
+function classifyAssignResult(row: { ok?: boolean; message?: string | null }): {
+  outcome: AssignOutcome;
+  message: string;
+} {
+  const message = row.message ?? '';
+  if (row.ok) return { outcome: 'success', message };
+  if (message.toLowerCase().includes('asignado')) {
+    return { outcome: 'already_assigned', message };
   }
-  return pool;
+  return { outcome: 'failed', message };
 }
 
-// ─── Route handlers ───────────────────────────────────────────────────────────
+async function notifySlack(payload: Record<string, unknown>) {
+  const url = process.env.N8N_SLACK_WEBHOOK_URL || process.env.SLACK_WEBHOOK_INVITATIONS;
+  if (!url) {
+    console.warn('[N8N_SLACK] webhook URL no configurada');
+    return;
+  }
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      console.error('[N8N_SLACK] webhook HTTP error:', res.status, await res.text());
+    }
+  } catch (err) {
+    console.error('[N8N_SLACK] error:', err);
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
-    let { token, action } = await req.json();
+    const { token, action } = (await req.json()) as { token?: string; action?: RespondAction };
 
-    if (!token || !['accept', 'decline'].includes(action)) {
+    if (!token || !action || !['accept', 'decline'].includes(action)) {
       return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 });
     }
 
-    let invitation = await getInvitationByToken(token);
-    
-    // Si no existe, intentar auto-crear usando el token como identificador
-    // Esto ocurre cuando N8N envía el WhatsApp pero no registra en BD
+    const invitation = await getInvitationByToken(token);
     if (!invitation) {
-      console.warn(`[INVITE_RESPOND] Invitación no encontrada para ${token}, intentando auto-recuperación...`);
-      
-      // Intentar crear un registro "ghost" con datos mínimos del token
-      // El token debería contener info codificada o podemos usar valores por defecto
-      try {
-        await getPool().query(
-          `INSERT INTO public.cleaner_invitations 
-           (token, teamup_event_id, cleaner_name, cleaner_phone, cleaner_subcalendar_id, cleaner_genero, status, sent_at)
-           VALUES ($1, 'unknown', 'Cleaner Unknown', '', 'unknown', 'Mujer', 'pending', NOW())
-           ON CONFLICT (token) DO NOTHING`,
-          [token]
-        );
-        
-        // Intentar recuperar nuevamente
-        invitation = await getInvitationByToken(token);
-        
-        if (!invitation) {
-          console.error(`[INVITE_RESPOND] No se pudo recuperar invitación después de crear registro fantasma para ${token}`);
-          return NextResponse.json(
-            { error: 'Invitación no encontrada e incapaz de recuperar' },
-            { status: 404 }
-          );
-        }
-        
-        console.log(`[INVITE_RESPOND] ✅ Auto-recuperada invitación para ${token}`);
-      } catch (recoverErr) {
-        console.error(`[INVITE_RESPOND] Error en auto-recuperación:`, recoverErr);
-        return NextResponse.json({ error: 'Invitación no encontrada' }, { status: 404 });
-      }
+      return NextResponse.json({ error: 'Invitación no encontrada' }, { status: 404 });
     }
 
     if (invitation.status !== 'pending') {
@@ -68,55 +61,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (action === 'accept') {
-      const assignResult = await getPool().query(
-        `SELECT * FROM public.assign_contract_to_cleaner_v2($1, $2, $3) LIMIT 1`,
-        [invitation.teamup_event_id, invitation.cleaner_subcalendar_id, invitation.cleaner_genero]
-      );
-
-      const row = assignResult.rows[0] ?? {};
-      await respondToInvitation(token, 'accepted', row);
-
-      // Notificación webhook (n8n recomendado; mantiene compatibilidad con variable legacy).
-      const n8nSlackUrl = process.env.N8N_SLACK_WEBHOOK_URL || process.env.SLACK_WEBHOOK_INVITATIONS;
-      if (!n8nSlackUrl) {
-        console.warn('[N8N_SLACK] webhook URL no configurada (N8N_SLACK_WEBHOOK_URL)');
-      } else {
-        try {
-          const webhookRes = await fetch(n8nSlackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              teamup_event_id: invitation.teamup_event_id,
-              cleaner_name: invitation.cleaner_name,
-              assign_ok: row.ok ?? false,
-              assign_message: row.message || '',
-            }),
-          });
-
-          if (!webhookRes.ok) {
-            const responseBody = await webhookRes.text();
-            console.error('[N8N_SLACK] webhook HTTP error:', webhookRes.status, responseBody);
-          }
-        } catch (err) {
-          console.error('[N8N_SLACK] error:', err);
-        }
-      }
-
+    if (action === 'decline') {
+      await respondToInvitation(token, 'declined');
       return NextResponse.json({
         ok: true,
-        status: 'accepted',
-        message: row.message || '¡Servicio aceptado!',
-        assign_ok: row.ok ?? false,
+        status: 'declined',
+        message: 'Servicio rechazado. Gracias por avisarnos.',
       });
     }
 
-    // action === 'decline'
-    await respondToInvitation(token, 'declined');
+    // action === 'accept'
+    const assignResult = await getPool().query(
+      `SELECT * FROM public.assign_contract_to_cleaner_v2($1, $2, $3) LIMIT 1`,
+      [invitation.teamup_event_id, invitation.cleaner_subcalendar_id, invitation.cleaner_genero]
+    );
+    const row = assignResult.rows[0] ?? {};
+    const { outcome, message } = classifyAssignResult(row);
+
+    await respondToInvitation(token, 'accepted', row);
+
+    await notifySlack({
+      teamup_event_id: invitation.teamup_event_id,
+      cleaner_name: invitation.cleaner_name,
+      assign_ok: outcome === 'success',
+      assign_message: message,
+    });
+
     return NextResponse.json({
-      ok: true,
-      status: 'declined',
-      message: 'Servicio rechazado. Gracias por avisarnos.',
+      ok: outcome === 'success',
+      status: 'accepted',
+      outcome,
+      message: message || (outcome === 'success' ? '¡Servicio aceptado!' : 'No se pudo asignar este servicio.'),
     });
   } catch (error) {
     console.error('[INVITE_RESPOND] error:', error);
@@ -124,35 +99,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — consulta el status actual de una invitación por token (para re-render)
+// GET — snapshot del estado actual de la invitación (útil como fallback debug / polling externo)
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const token = searchParams.get('token');
     if (!token) return NextResponse.json({ error: 'Token requerido' }, { status: 400 });
 
-    const invitation = await getInvitationByToken(token);
-    if (!invitation) return NextResponse.json({ status: 'not_found' }, { status: 404 });
-
-    // Si esta invitación sigue pendiente, verificar si otro cleaner ya aceptó el mismo evento
-    let serviceTaken = false;
-    if (invitation.status === 'pending') {
-      const otherAccepted = await getPool().query(
-        `SELECT 1 FROM public.cleaner_invitations
-         WHERE teamup_event_id = $1
-           AND status = 'accepted'
-           AND token <> $2
-           AND COALESCE((assign_result->>'ok')::boolean, false) = true
-         LIMIT 1`,
-        [invitation.teamup_event_id, token]
-      );
-      serviceTaken = otherAccepted.rows.length > 0;
-    }
+    const snapshot = await getInvitationSnapshot(token);
+    if (!snapshot) return NextResponse.json({ status: 'not_found' }, { status: 404 });
 
     return NextResponse.json({
-      status: invitation.status,
-      responded_at: invitation.responded_at,
-      service_taken: serviceTaken,
+      status: snapshot.status,
+      service_taken: snapshot.serviceTaken,
     });
   } catch (error) {
     console.error('[INVITE_STATUS] error:', error);

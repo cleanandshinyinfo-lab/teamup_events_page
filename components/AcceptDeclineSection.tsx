@@ -3,24 +3,35 @@
 import { useState } from 'react';
 import type { InvitationSnapshot } from '@/lib/db';
 
-type SectionStatus = 'idle' | 'loading' | 'accepted' | 'assign_failed' | 'declined' | 'already_responded' | 'already_assigned' | 'error';
+type SectionStatus =
+  | 'idle'
+  | 'loading'
+  | 'accepted'
+  | 'assign_failed'
+  | 'declined'
+  | 'already_responded'
+  | 'error';
 
 interface AcceptDeclineSectionProps {
   token: string;
   eventId: string;
   initialInvitation?: InvitationSnapshot | null;
-  onAlreadyAssigned?: () => void;
+  onAlreadyAssigned: () => void;
 }
 
 function deriveInitialState(snapshot?: InvitationSnapshot | null): { status: SectionStatus; message: string } {
   if (!snapshot) return { status: 'idle', message: '' };
   if (snapshot.status === 'accepted') return { status: 'already_responded', message: '✅ Ya aceptaste este servicio.' };
   if (snapshot.status === 'declined') return { status: 'already_responded', message: '❌ Ya rechazaste este servicio.' };
-  if (snapshot.serviceTaken) return { status: 'already_assigned', message: '' };
   return { status: 'idle', message: '' };
 }
 
-export default function AcceptDeclineSection({ token, eventId, initialInvitation, onAlreadyAssigned }: AcceptDeclineSectionProps) {
+export default function AcceptDeclineSection({
+  token,
+  eventId,
+  initialInvitation,
+  onAlreadyAssigned,
+}: AcceptDeclineSectionProps) {
   const initial = deriveInitialState(initialInvitation);
   const [status, setStatus] = useState<SectionStatus>(initial.status);
   const [message, setMessage] = useState(initial.message);
@@ -49,17 +60,16 @@ export default function AcceptDeclineSection({ token, eventId, initialInvitation
         return;
       }
 
-      if (action === 'accept' && data.assign_ok === false) {
-        // Detectar si el error es porque el servicio ya fue asignado a otro cleaner
-        const isAlreadyAssigned = data.message && data.message.toLowerCase().includes('asignado');
-        if (isAlreadyAssigned) {
-          setStatus('already_assigned');
-          onAlreadyAssigned?.();
-        } else {
+      if (action === 'accept') {
+        if (data.outcome === 'already_assigned') {
+          onAlreadyAssigned();
+          return;
+        }
+        if (data.outcome === 'failed') {
           setStatus('assign_failed');
           setMessage(data.message || 'No se pudo asignar este servicio.');
+          return;
         }
-        return;
       }
       setStatus(action === 'accept' ? 'accepted' : 'declined');
       setMessage(data.message || '');
@@ -74,16 +84,6 @@ export default function AcceptDeclineSection({ token, eventId, initialInvitation
       <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
         <p className="text-gray-700 font-medium">{message}</p>
         <p className="text-sm text-gray-500 mt-1">Si tienes alguna pregunta, contacta al equipo.</p>
-      </div>
-    );
-  }
-
-  if (status === 'already_assigned') {
-    return (
-      <div className="mt-6 p-6 bg-blue-50 rounded-xl border border-blue-200 text-center space-y-2">
-        <div className="text-4xl">✨</div>
-        <p className="text-blue-900 font-semibold text-lg">Otro cleaner ya tomó este servicio</p>
-        <p className="text-blue-700 text-sm">¡Gracias por tu disponibilidad! Estamos seguros de que pronto habrá más servicios para ti.</p>
       </div>
     );
   }
@@ -112,7 +112,7 @@ export default function AcceptDeclineSection({ token, eventId, initialInvitation
   if (status === 'assign_failed' || status === 'error') {
     const isAssignFailed = status === 'assign_failed';
     const actionLabel = lastAction === 'accept' ? 'Aceptar servicio' : 'Rechazar servicio';
-    
+
     return (
       <div className={`mt-6 p-6 rounded-xl border space-y-3 ${isAssignFailed ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200'}`}>
         <div className="text-3xl text-center">{isAssignFailed ? '⚠️' : '❌'}</div>

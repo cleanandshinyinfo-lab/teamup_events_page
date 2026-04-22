@@ -75,3 +75,50 @@ a:hover {
 .bg-gradient-accent {
   background: linear-gradient(135deg, #f7b733 0%, #fc4a1a 100%);
 }
+
+/* Sanitized Teamup HTML instructions */
+.instructions-content p {
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+.instructions-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  font-weight: 500;
+}
+.instructions-content a:hover {
+  color: var(--primary-dark);
+}
+.instructions-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 20px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.instructions-content strong {
+  color: var(--secondary);
+  font-weight: 600;
+}
+.instructions-content ul,
+.instructions-content ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+.instructions-content li {
+  margin-bottom: 0.5rem;
+}
+.instructions-content hr {
+  margin: 1.5rem 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+.instructions-content h1,
+.instructions-content h2,
+.instructions-content h3,
+.instructions-content h4 {
+  color: var(--secondary);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
