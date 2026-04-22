@@ -42,10 +42,12 @@ export async function getEventById(eventId: string): Promise<Event | null> {
         rc.photos_required,
         rc.description_html,
         rc.description,
-        rc."u8M9e" AS notas_mascotas
+        cd.notasmascotas AS notas_mascotas
       FROM "Glide"."recent_contracts" rc
       LEFT JOIN "Glide"."v_contracts_assigned_active" v
         ON rc.teamup_event_id = v.teamup_event_id
+      LEFT JOIN "Glide"."clientdb" cd
+        ON lower(trim(cd.nombredelcliente)) = lower(trim(rc.client_name))
       WHERE rc.teamup_event_id = $1
       LIMIT 1`,
       [eventId]
