@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import { Event } from '@/lib/types';
 import {
   formatDate,
@@ -23,6 +26,23 @@ interface EventDetailsProps {
 export default function EventDetails({ event, token }: EventDetailsProps) {
   const cityName = getCityDisplayName(event.city);
   const cityBadge = getCityBadge(event.city);
+  const [isUnavailable, setIsUnavailable] = useState(false);
+
+  if (isUnavailable) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="text-center space-y-3 max-w-md">
+          <div className="text-5xl">✨</div>
+          <p className="text-gray-900 font-semibold text-xl">
+            Este servicio ya no está disponible
+          </p>
+          <p className="text-gray-600 text-sm">
+            Otro cleaner ya lo tomó. ¡Gracias por tu disponibilidad! Pronto habrá más servicios para ti.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -104,7 +124,13 @@ export default function EventDetails({ event, token }: EventDetailsProps) {
             </div>
 
             {/* Accept / Decline — only shown when a valid invitation token is present */}
-            {token && <AcceptDeclineSection token={token} eventId={event.teamup_event_id} />}
+            {token && (
+              <AcceptDeclineSection
+                token={token}
+                eventId={event.teamup_event_id}
+                onAlreadyAssigned={() => setIsUnavailable(true)}
+              />
+            )}
           </div>
 
           {/* Footer */}

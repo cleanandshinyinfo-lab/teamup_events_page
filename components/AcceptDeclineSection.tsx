@@ -7,9 +7,10 @@ type SectionStatus = 'idle' | 'loading' | 'accepted' | 'assign_failed' | 'declin
 interface AcceptDeclineSectionProps {
   token: string;
   eventId: string;
+  onAlreadyAssigned?: () => void;
 }
 
-export default function AcceptDeclineSection({ token, eventId }: AcceptDeclineSectionProps) {
+export default function AcceptDeclineSection({ token, eventId, onAlreadyAssigned }: AcceptDeclineSectionProps) {
   const [status, setStatus] = useState<SectionStatus>('idle');
   const [message, setMessage] = useState('');
   const [lastAction, setLastAction] = useState<'accept' | 'decline' | null>(null);
@@ -56,6 +57,7 @@ export default function AcceptDeclineSection({ token, eventId }: AcceptDeclineSe
         const isAlreadyAssigned = data.message && data.message.toLowerCase().includes('asignado');
         if (isAlreadyAssigned) {
           setStatus('already_assigned');
+          onAlreadyAssigned?.();
         } else {
           setStatus('assign_failed');
           setMessage(data.message || 'No se pudo asignar este servicio.');
