@@ -71,9 +71,11 @@ export async function POST(req: NextRequest) {
     }
 
     // action === 'accept'
+    // p_source='invite' → el workflow n8n NO agrega 'solicitado_por_cleaner'
+    // (esa etiqueta sólo aplica cuando el cleaner pide el servicio desde la app cleaner).
     const assignResult = await getPool().query(
-      `SELECT * FROM public.assign_contract_to_cleaner_v2($1, $2, $3) LIMIT 1`,
-      [invitation.teamup_event_id, invitation.cleaner_subcalendar_id, invitation.cleaner_genero]
+      `SELECT * FROM public.assign_contract_to_cleaner_v2($1, $2, $3, $4) LIMIT 1`,
+      [invitation.teamup_event_id, invitation.cleaner_subcalendar_id, invitation.cleaner_genero, 'invite']
     );
     const row = assignResult.rows[0] ?? {};
     const { outcome, message } = classifyAssignResult(row);
