@@ -21,23 +21,106 @@ function classifyAssignResult(row: { ok?: boolean; message?: string | null }): {
   return { outcome: 'failed', message };
 }
 
-async function notifySlack(payload: Record<string, unknown>) {
-  const url = process.env.N8N_SLACK_WEBHOOK_URL || process.env.SLACK_WEBHOOK_INVITATIONS;
+interface SlackEnrichRow {
+  client_name: string | null;
+  city: string | null;
+  frequency: string | null;
+  duration_hours: string | number | null;
+  required_cleaners: number | null;
+  teamup_series_id: string | null;
+  start_date_es: string | null;
+  elclienteaceptoqueelcleanersea: string | null;
+  tipodelimpiezafr: string | null;
+  cuenta_con_auto_o_pase_valido: string | null;
+}
+
+interface SlackPayload {
+  teamup_event_id: string;
+  cleaner_name: string;
+  assign_ok: boolean;
+  assign_message: string;
+}
+
+function formatRequired(n: number | null): string {
+  if (n === 1) return 'Uno 👤';
+  if (n === 2) return 'Dos 👥';
+  return n ? String(n) : '';
+}
+
+function buildSlackText(payload: SlackPayload, db: SlackEnrichRow): string {
+  const cleanerName = payload.cleaner_name || '';
+  const hasCar = /auto/i.test(db.cuenta_con_auto_o_pase_valido || '');
+  const cleanerLabel = `${cleanerName}${hasCar ? ' 🚗' : ''}`;
+  const city = (db.city || '').replace(/_/g, ' ');
+  const isRecurring = !!db.teamup_series_id;
+  const assignMessage = payload.assign_message || 'Sin respuesta';
+  const duration = db.duration_hours
+    ? `${db.duration_hours} hora${Number(db.duration_hours) !== 1 ? 's' : ''}`
+    : null;
+
+  const lines = [
+    `*Nuevo servicio ${isRecurring ? 'recurrente' : 'único'} aceptado desde la web (vercel)* ✅`,
+    ...(isRecurring ? ['👉 _Revisar que todos los contratos dentro del ciclo se hayan asignado correctamente_'] : []),
+    '---',
+    `*Cleaner:* ${cleanerLabel}`,
+    `*Cliente:* ${db.client_name || ''}`,
+    `*Ciudad:* ${city}`,
+    `*Fecha del servicio:* ${db.start_date_es || ''}`,
+    ...(db.frequency ? [`*Frecuencia:* ${db.frequency}`] : []),
+    ...(duration ? [`*Duración:* ${duration}`] : []),
+    ...(db.required_cleaners ? [`*Cleaners requeridos:* ${formatRequired(db.required_cleaners)}`] : []),
+    `*El cliente acepta que el cleaner sea:* ${db.elclienteaceptoqueelcleanersea || ''}`,
+    ...(db.tipodelimpiezafr ? [`*El cleaner prefiere:* ${db.tipodelimpiezafr}`] : []),
+    `*El cleaner intentó:* Aceptar servicio`,
+    `*La respuesta del sistema fue:* ${assignMessage}`,
+    `*ID del servicio:* ${payload.teamup_event_id}`,
+  ];
+  return lines.join('\n');
+}
+
+async function notifySlack(payload: SlackPayload) {
+  const url = process.env.SLACK_WEBHOOK_INVITATIONS;
   if (!url) {
-    console.warn('[N8N_SLACK] webhook URL no configurada');
+    console.warn('[SLACK_INVITATIONS] webhook URL no configurada');
     return;
   }
   try {
+    const enrich = await getPool().query<SlackEnrichRow>(
+      `
+      SELECT
+        rc.client_name,
+        rc.city,
+        rc.frequency,
+        rc.duration_hours,
+        rc.required_cleaners,
+        rc.teamup_series_id,
+        "Glide".format_spanish_date(rc.start_teamup_local::timestamptz) AS start_date_es,
+        cd.elclienteaceptoqueelcleanersea,
+        cd.tipodelimpiezafr,
+        cl.cuenta_con_auto_o_pase_valido
+      FROM "Glide".recent_contracts rc
+      LEFT JOIN "Glide".clientdb cd
+        ON lower(trim(rc.client_name)) = lower(trim(cd.nombredelcliente))
+      LEFT JOIN "Glide".cleaners cl
+        ON lower(trim(cl.cleaner)) = lower(trim($2))
+      WHERE rc.teamup_event_id = $1
+      LIMIT 1
+      `,
+      [payload.teamup_event_id, payload.cleaner_name],
+    );
+    const db = enrich.rows[0] ?? ({} as SlackEnrichRow);
+    const text = buildSlackText(payload, db);
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ text }),
     });
     if (!res.ok) {
-      console.error('[N8N_SLACK] webhook HTTP error:', res.status, await res.text());
+      console.error('[SLACK_INVITATIONS] webhook HTTP error:', res.status, await res.text());
     }
   } catch (err) {
-    console.error('[N8N_SLACK] error:', err);
+    console.error('[SLACK_INVITATIONS] error:', err);
   }
 }
 
