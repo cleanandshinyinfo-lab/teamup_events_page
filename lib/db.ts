@@ -101,11 +101,11 @@ export async function getInvitationSnapshot(token: string): Promise<InvitationSn
          CASE
            WHEN me.status <> 'pending' THEN false
            ELSE EXISTS (
-             SELECT 1 FROM public.cleaner_invitations o
-             WHERE o.teamup_event_id = me.teamup_event_id
-               AND o.status = 'accepted'
-               AND o.token <> me.token
-               AND COALESCE((o.assign_result->>'ok')::boolean, false) = true
+             SELECT 1 FROM "Glide".recent_contracts rc
+             WHERE rc.teamup_event_id = me.teamup_event_id
+               AND rc.assigned = true
+               AND rc.cancelled_at IS NULL
+               AND rc.is_active = true
            )
          END AS service_taken
        FROM public.cleaner_invitations me
