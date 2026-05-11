@@ -39,6 +39,7 @@ interface SlackPayload {
   cleaner_name: string;
   assign_ok: boolean;
   assign_message: string;
+  outcome: AssignOutcome;
 }
 
 function formatRequired(n: number | null): string {
@@ -58,9 +59,24 @@ function buildSlackText(payload: SlackPayload, db: SlackEnrichRow): string {
     ? `${db.duration_hours} hora${Number(db.duration_hours) !== 1 ? 's' : ''}`
     : null;
 
+  // Header varía según el outcome real de la asignación:
+  // - success: servicio aceptado de verdad
+  // - already_assigned: el cleaner pidió tomarlo pero ya estaba tomado por otra persona
+  // - failed: otra falla (capacidad llena, conflicto de buffer, etc.)
+  let header: string;
+  if (payload.outcome === 'success') {
+    header = `*Nuevo servicio ${isRecurring ? 'recurrente' : 'único'} aceptado desde la web (vercel)* ✅`;
+  } else if (payload.outcome === 'already_assigned') {
+    header = `*Cleaner intentó tomar un servicio ya asignado* ⚠️`;
+  } else {
+    header = `*Falló la asignación de un servicio desde la web (vercel)* ❌`;
+  }
+
   const lines = [
-    `*Nuevo servicio ${isRecurring ? 'recurrente' : 'único'} aceptado desde la web (vercel)* ✅`,
-    ...(isRecurring ? ['👉 _Revisar que todos los contratos dentro del ciclo se hayan asignado correctamente_'] : []),
+    header,
+    ...(payload.outcome === 'success' && isRecurring
+      ? ['👉 _Revisar que todos los contratos dentro del ciclo se hayan asignado correctamente_']
+      : []),
     '---',
     `*Cleaner:* ${cleanerLabel}`,
     `*Cliente:* ${db.client_name || ''}`,
@@ -170,6 +186,7 @@ export async function POST(req: NextRequest) {
       cleaner_name: invitation.cleaner_name,
       assign_ok: outcome === 'success',
       assign_message: message,
+      outcome,
     });
 
     return NextResponse.json({
