@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Event } from '@/lib/types';
 import type { InvitationSnapshot } from '@/lib/db';
 import {
@@ -31,6 +31,41 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
   const [isUnavailable, setIsUnavailable] = useState(
     initialInvitation?.status === 'pending' && initialInvitation.serviceTaken
   );
+
+  // Polling: detecta si otro cleaner toma el servicio mientras esta página
+  // está abierta. Sin esto el SSR se queda con el snapshot del momento de
+  // cargar y el cleaner puede hacer click "Sí, puedo tomar" en algo ya tomado.
+  useEffect(() => {
+    if (!token || isUnavailable) return;
+
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const r = await fetch(`/api/invite/status?token=${encodeURIComponent(token)}`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!cancelled && d?.status === 'pending' && d?.serviceTaken) {
+          setIsUnavailable(true);
+        }
+      } catch {
+        // silencioso: red intermitente, reintentamos en el próximo tick
+      }
+    };
+
+    const interval = setInterval(check, 30_000);
+    const onFocus = () => check();
+    const onVisibility = () => { if (document.visibilityState === 'visible') check(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [token, isUnavailable]);
 
   if (isUnavailable) {
     return (
