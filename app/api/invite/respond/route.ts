@@ -67,7 +67,7 @@ function buildSlackText(payload: SlackPayload, db: SlackEnrichRow): string {
   if (payload.outcome === 'success') {
     header = `*Nuevo servicio ${isRecurring ? 'recurrente' : 'único'} aceptado desde la web (vercel)* ✅`;
   } else if (payload.outcome === 'already_assigned') {
-    header = `*Cleaner intentó tomar un servicio ya asignado* ⚠️`;
+    header = `*El servicio solicitado no se pudo aceptar porque ya no está disponible* ⚠️`;
   } else {
     header = `*Falló la asignación de un servicio desde la web (vercel)* ❌`;
   }
