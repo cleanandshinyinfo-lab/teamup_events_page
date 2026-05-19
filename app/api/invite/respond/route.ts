@@ -170,6 +170,32 @@ export async function POST(req: NextRequest) {
     }
 
     // action === 'accept'
+
+    // Validación defensiva: el evento puede haber sido borrado/movido en TeamUp
+    // entre la creación de la invitación y el click de aceptar. Si la BD lo
+    // tiene como cancelled_by='sync_confirmed_mirror' o is_active=false,
+    // significa que TeamUp lo eliminó. No tiene sentido intentar asignar.
+    const stateCheck = await getPool().query(
+      `SELECT is_active, cancelled_by
+       FROM "Glide".recent_contracts
+       WHERE teamup_event_id = $1
+       LIMIT 1`,
+      [invitation.teamup_event_id]
+    );
+    const evState = stateCheck.rows[0];
+    if (!evState || evState.is_active === false || evState.cancelled_by === 'sync_confirmed_mirror') {
+      await respondToInvitation(token, 'declined');
+      return NextResponse.json(
+        {
+          ok: false,
+          status: 'event_deleted',
+          outcome: 'failed',
+          message: 'Este servicio ya no está disponible (fue eliminado o modificado en el calendario). Por favor contacta al equipo.',
+        },
+        { status: 410 } // 410 Gone
+      );
+    }
+
     // p_source='invite' → el workflow n8n NO agrega 'solicitado_por_cleaner'
     // (esa etiqueta sólo aplica cuando el cleaner pide el servicio desde la app cleaner).
     const assignResult = await getPool().query(
