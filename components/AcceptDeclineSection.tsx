@@ -9,6 +9,7 @@ type SectionStatus =
   | 'accepted'
   | 'assign_failed'
   | 'declined'
+  | 'time_proposed'
   | 'already_responded'
   | 'error';
 
@@ -36,6 +37,10 @@ export default function AcceptDeclineSection({
   const [status, setStatus] = useState<SectionStatus>(initial.status);
   const [message, setMessage] = useState(initial.message);
   const [lastAction, setLastAction] = useState<'accept' | 'decline' | null>(null);
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [proposedTime, setProposedTime] = useState('');
+  const [submittingTime, setSubmittingTime] = useState(false);
+  const [timeError, setTimeError] = useState('');
 
   const respond = async (action: 'accept' | 'decline') => {
     setLastAction(action);
@@ -79,6 +84,42 @@ export default function AcceptDeclineSection({
     }
   };
 
+  const submitProposedTime = async () => {
+    const value = proposedTime.trim();
+    if (!value) {
+      setTimeError('Escribe a qué hora podrías llegar.');
+      return;
+    }
+    setTimeError('');
+    setSubmittingTime(true);
+    try {
+      const res = await fetch('/api/invite/propose-time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, proposed_time: value }),
+      });
+      const data = await res.json();
+
+      if (res.status === 409) {
+        setShowTimeModal(false);
+        setStatus('already_responded');
+        setMessage(data.status === 'accepted' ? '✅ Ya aceptaste este servicio.' : '❌ Ya rechazaste este servicio.');
+        return;
+      }
+      if (!res.ok) {
+        setTimeError(data.error || 'No se pudo enviar tu propuesta.');
+        return;
+      }
+      setShowTimeModal(false);
+      setStatus('time_proposed');
+      setMessage(data.message || '');
+    } catch {
+      setTimeError('Error de conexión. Por favor intenta de nuevo.');
+    } finally {
+      setSubmittingTime(false);
+    }
+  };
+
   if (status === 'already_responded') {
     return (
       <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
@@ -95,6 +136,16 @@ export default function AcceptDeclineSection({
         <p className="text-green-800 font-semibold text-lg">¡Servicio aceptado!</p>
         <p className="text-green-700 text-sm">{message || 'El equipo ha sido notificado. ¡Gracias!'}</p>
         <p className="text-xs text-green-600 mt-3">Este servicio desaparecerá de la lista en unos segundos...</p>
+      </div>
+    );
+  }
+
+  if (status === 'time_proposed') {
+    return (
+      <div className="mt-6 p-6 bg-blue-50 rounded-xl border border-blue-200 text-center space-y-2">
+        <div className="text-4xl">🕐</div>
+        <p className="text-blue-800 font-semibold text-lg">¡Propuesta enviada!</p>
+        <p className="text-blue-700 text-sm">{message || 'Le avisamos al equipo a qué hora podrías llegar. Ellos coordinarán con el cliente.'}</p>
       </div>
     );
   }
@@ -164,6 +215,64 @@ export default function AcceptDeclineSection({
           ❌ No puedo tomar este servicio
         </button>
       </div>
+
+      <button
+        onClick={() => {
+          setProposedTime('');
+          setTimeError('');
+          setShowTimeModal(true);
+        }}
+        disabled={status === 'loading'}
+        className="mt-3 w-full py-3 px-6 bg-white hover:bg-blue-50 active:bg-blue-100 text-blue-700 font-semibold rounded-xl text-base border border-blue-300 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+      >
+        🕐 Puedo tomarlo, pero en otro horario
+      </button>
+
+      {showTimeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !submittingTime && setShowTimeModal(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 space-y-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900">¿A qué hora podrías llegar?</h3>
+            <p className="text-sm text-gray-500">
+              Escribe el horario al que sí podrías hacer este servicio. El equipo coordinará con el cliente.
+            </p>
+            <input
+              type="text"
+              value={proposedTime}
+              onChange={(e) => setProposedTime(e.target.value)}
+              placeholder="Ej: a las 2 pm, después de las 13:00..."
+              autoFocus
+              disabled={submittingTime}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitProposedTime();
+              }}
+            />
+            {timeError && <p className="text-sm text-red-600">{timeError}</p>}
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setShowTimeModal(false)}
+                disabled={submittingTime}
+                className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={submitProposedTime}
+                disabled={submittingTime}
+                className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {submittingTime ? <span className="animate-spin text-lg">⟳</span> : 'Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

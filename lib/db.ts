@@ -137,3 +137,121 @@ export async function respondToInvitation(
     [status, assignResult ? JSON.stringify(assignResult) : null, token]
   );
 }
+
+/**
+ * Guarda la hora propuesta por el cleaner (acepta el servicio pero en otro
+ * horario). No cambia el status: la invitación sigue 'pending' y el equipo
+ * coordina a partir del mensaje en #servicio-al-cliente.
+ */
+export async function recordProposedTime(token: string, proposedTime: string): Promise<void> {
+  await getPool().query(
+    `UPDATE public.cleaner_invitations
+     SET proposed_time = $1, proposed_time_at = NOW()
+     WHERE token = $2`,
+    [proposedTime, token]
+  );
+}
+
+// ===== Fase C: página de servicios disponibles de la ciudad =====
+
+export interface BrowseCleaner {
+  subcalendar_id: string;
+  /** Nombre real para mostrar */
+  cleaner_name: string | null;
+  /** Nombre con plantilla (lleva el 🖲 si tiene aspiradora) — es el que el RPC usa para el filtro de aspiradora */
+  cleaner_name_template: string | null;
+  ciudad: string | null;
+  estado: string | null;
+  hombre_o_mujer: string | null;
+}
+
+/**
+ * Resuelve el token estable del link de broadcast al cleaner. Lee ciudad/estado/
+ * género desde "Glide".cleaners (siempre fresco). El token es uuid: se compara
+ * como texto para no reventar si llega un valor con formato inválido.
+ */
+export async function getBrowseCleanerByToken(token: string): Promise<BrowseCleaner | null> {
+  try {
+    const result = await getPool().query(
+      `SELECT
+         bl.cleaner_subcalendar_id AS subcalendar_id,
+         COALESCE(c.cleaner, bl.cleaner_name) AS cleaner_name,
+         c.cleaner_name_template,
+         c.ciudad,
+         c.estado,
+         c.hombre_o_mujer
+       FROM public.cleaner_browse_links bl
+       LEFT JOIN "Glide".cleaners c
+         ON c.subcalendar_unique_id = bl.cleaner_subcalendar_id
+       WHERE bl.token::text = $1
+       LIMIT 1`,
+      [token],
+    );
+    return (result.rows[0] as BrowseCleaner) ?? null;
+  } catch (error) {
+    console.error('DB getBrowseCleanerByToken error:', error);
+    return null;
+  }
+}
+
+export interface AvailableService {
+  teamup_event_id: string;
+  name: string | null;
+  address: string | null;
+  city: string | null;
+  hours: number | string | null;
+  required_cleaners: number | null;
+  cleaning_type: string | null;
+  frequency: string | null;
+  service_date_text: string | null;
+  service_time_text: string | null;
+  service_date: string | null;
+  vacuum_required: boolean | null;
+}
+
+/**
+ * Lista los servicios disponibles de la ciudad del cleaner usando el RPC
+ * get_city_contracts_with_distance_v4 (que ya filtra ciudad + sin conflicto +
+ * género + aspiradora, y NO filtra por disponibilidad — justo lo de Fase 2.0).
+ * Le pasamos cleaner_name_template para que el filtro de aspiradora (🖲) funcione.
+ */
+export async function getAvailableServicesForCleaner(
+  cleaner: BrowseCleaner,
+): Promise<AvailableService[]> {
+  try {
+    const result = await getPool().query(
+      `SELECT public.get_city_contracts_with_distance_v4($1, $2, $3, $4, $5) AS data`,
+      [
+        cleaner.ciudad,
+        cleaner.subcalendar_id,
+        cleaner.cleaner_name_template ?? cleaner.cleaner_name,
+        cleaner.estado,
+        cleaner.hombre_o_mujer,
+      ],
+    );
+    const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
+    const contracts = data?.contracts ?? [];
+    // Orden por fecha del servicio (v1: sin distancia)
+    return [...contracts].sort((a, b) =>
+      String(a.service_date || '').localeCompare(String(b.service_date || '')),
+    );
+  } catch (error) {
+    console.error('DB getAvailableServicesForCleaner error:', error);
+    return [];
+  }
+}
+
+/**
+ * El cleaner solicita (se autoasigna) un servicio. source='servicios_page'
+ * (≠ 'invite') hace que el outbox-worker agregue el tag 'solicitado_por_cleaner'.
+ */
+export async function requestServiceForCleaner(
+  cleaner: BrowseCleaner,
+  eventId: string,
+): Promise<Record<string, unknown>> {
+  const result = await getPool().query(
+    `SELECT * FROM public.assign_contract_to_cleaner_v2($1, $2, $3, $4) LIMIT 1`,
+    [eventId, cleaner.subcalendar_id, cleaner.hombre_o_mujer, 'servicios_page'],
+  );
+  return result.rows[0] ?? {};
+}
