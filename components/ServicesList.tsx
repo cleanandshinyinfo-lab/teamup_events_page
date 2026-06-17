@@ -19,6 +19,13 @@ function cityLabel(city: string | null): string {
 export default function ServicesList({ token, cleanerName, city, services }: ServicesListProps) {
   const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({});
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [proposedFor, setProposedFor] = useState<Record<string, boolean>>({});
+
+  // Modal "otro horario"
+  const [timeModalFor, setTimeModalFor] = useState<string | null>(null);
+  const [proposedTime, setProposedTime] = useState('');
+  const [submittingTime, setSubmittingTime] = useState(false);
+  const [timeError, setTimeError] = useState('');
 
   const request = async (eventId: string) => {
     setStatuses((s) => ({ ...s, [eventId]: 'loading' }));
@@ -51,6 +58,41 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
     }
   };
 
+  const openTimeModal = (eventId: string) => {
+    setTimeModalFor(eventId);
+    setProposedTime('');
+    setTimeError('');
+  };
+
+  const submitProposedTime = async () => {
+    if (!timeModalFor) return;
+    const value = proposedTime.trim();
+    if (!value) {
+      setTimeError('Escribe a qué hora podrías llegar.');
+      return;
+    }
+    setTimeError('');
+    setSubmittingTime(true);
+    try {
+      const res = await fetch('/api/servicios/propose-time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, teamup_event_id: timeModalFor, proposed_time: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTimeError(data.error || 'No se pudo enviar tu propuesta.');
+        return;
+      }
+      setProposedFor((p) => ({ ...p, [timeModalFor]: true }));
+      setTimeModalFor(null);
+    } catch {
+      setTimeError('Error de conexión. Por favor intenta de nuevo.');
+    } finally {
+      setSubmittingTime(false);
+    }
+  };
+
   if (services.length === 0) {
     return (
       <div className="mt-6 p-6 bg-gray-50 rounded-xl border border-gray-200 text-center">
@@ -67,7 +109,7 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
         const id = svc.teamup_event_id;
         const status = statuses[id] || 'idle';
         const msg = messages[id] || '';
-        const done = status === 'requested' || status === 'taken';
+        const proposed = !!proposedFor[id];
 
         return (
           <div
@@ -112,10 +154,10 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
               ) : status === 'taken' ? (
                 <p className="text-gray-600 font-medium">🔒 {msg || 'Este servicio ya fue tomado.'}</p>
               ) : (
-                <>
+                <div className="space-y-2">
                   <button
                     onClick={() => request(id)}
-                    disabled={status === 'loading' || done}
+                    disabled={status === 'loading'}
                     className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-xl text-base transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                   >
                     {status === 'loading' ? (
@@ -124,19 +166,81 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
                       'Solicitar este servicio'
                     )}
                   </button>
-                  {status === 'error' && msg && (
-                    <p className="mt-2 text-sm text-red-600 text-center">{msg}</p>
+
+                  {proposed ? (
+                    <p className="text-center text-sm text-blue-700 font-medium">
+                      🕐 Propuesta de horario enviada al equipo
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => openTimeModal(id)}
+                      disabled={status === 'loading'}
+                      className="w-full py-2.5 px-6 bg-white hover:bg-blue-50 active:bg-blue-100 text-blue-700 font-semibold rounded-xl text-sm border border-blue-300 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      🕐 Puedo, pero en otro horario
+                    </button>
                   )}
-                </>
+
+                  {status === 'error' && msg && (
+                    <p className="text-sm text-red-600 text-center">{msg}</p>
+                  )}
+                </div>
               )}
             </div>
           </div>
         );
       })}
+
       <p className="text-center text-xs text-gray-400 pt-2">
         {cleanerName ? `${cleanerName} · ` : ''}
         {cityLabel(city)}
       </p>
+
+      {timeModalFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !submittingTime && setTimeModalFor(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 space-y-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900">¿A qué hora podrías llegar?</h3>
+            <p className="text-sm text-gray-500">
+              Escribe el horario al que sí podrías hacer este servicio. El equipo coordinará con el cliente.
+            </p>
+            <input
+              type="text"
+              value={proposedTime}
+              onChange={(e) => setProposedTime(e.target.value)}
+              placeholder="Ej: a las 2 pm, después de las 13:00..."
+              autoFocus
+              disabled={submittingTime}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitProposedTime();
+              }}
+            />
+            {timeError && <p className="text-sm text-red-600">{timeError}</p>}
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setTimeModalFor(null)}
+                disabled={submittingTime}
+                className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={submitProposedTime}
+                disabled={submittingTime}
+                className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {submittingTime ? <span className="animate-spin text-lg">⟳</span> : 'Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
