@@ -207,6 +207,8 @@ export interface AvailableService {
   service_time_text: string | null;
   service_date: string | null;
   vacuum_required: boolean | null;
+  /** TRUE si el servicio fue cancelado de último minuto (tag cancelado_desde_la_app) */
+  cancelado_last_min?: boolean;
 }
 
 /**
@@ -231,8 +233,11 @@ export async function getAvailableServicesForCleaner(
     );
     const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
     const contracts = data?.contracts ?? [];
+    // Solo servicios cancelados de último minuto (los demás filtros — ciudad, género,
+    // aspiradora, conflicto de horario — ya los aplica el RPC).
+    const cancelled = contracts.filter((c) => c.cancelado_last_min === true);
     // Orden por fecha del servicio (v1: sin distancia)
-    return [...contracts].sort((a, b) =>
+    return cancelled.sort((a, b) =>
       String(a.service_date || '').localeCompare(String(b.service_date || '')),
     );
   } catch (error) {
