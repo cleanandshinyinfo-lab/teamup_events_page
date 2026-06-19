@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBrowseCleanerByToken, requestServiceForCleaner } from '@/lib/db';
-import { replyInCancellationThread, CANCELACION_TAG } from '@/lib/cancelThread';
+import { notifyServiceResponse } from '@/lib/cancelThread';
 
 type AssignOutcome = 'success' | 'already_assigned' | 'failed';
 
@@ -36,11 +36,14 @@ export async function POST(req: NextRequest) {
     const { outcome, message } = classifyAssignResult(row);
 
     if (outcome === 'success') {
-      const name = cleaner.cleaner_name || 'Una cleaner';
-      await replyInCancellationThread(
-        String(teamup_event_id),
-        `✅ La cleaner *${name}* tomó este servicio cancelado (vía la página de servicios). ${CANCELACION_TAG}`,
-      );
+      // Aviso a Slack (rutea según cancelado/declinado).
+      await notifyServiceResponse({
+        eventId: String(teamup_event_id),
+        action: 'accept',
+        cleanerName: cleaner.cleaner_name || 'Una cleaner',
+      });
+      // TODO: avisar a la clienta por Quo + correo que va un cleaner de reemplazo
+      // (pendiente: templates que pondrá Alan en comentarios).
     }
 
     return NextResponse.json({

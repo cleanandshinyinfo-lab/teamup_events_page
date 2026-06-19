@@ -16,6 +16,40 @@ function cityLabel(city: string | null): string {
   return (city || '').replace(/_/g, ' ');
 }
 
+// Fechas permitidas: día actual, mañana y pasado mañana (hora de Toronto).
+// value = YYYY-MM-DD, label = la fecha real (ej. "viernes, 19 de junio").
+function dateOptions(): { value: string; label: string }[] {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+  const base = new Date(`${today}T12:00:00Z`);
+  return [0, 1, 2].map((d) => {
+    const x = new Date(base);
+    x.setUTCDate(x.getUTCDate() + d);
+    const iso = x.toISOString().slice(0, 10);
+    const label = x.toLocaleDateString('es-ES', {
+      timeZone: 'UTC',
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    return { value: iso, label };
+  });
+}
+
+// Horas: cada 30 min, hasta las 5:00 p. m.
+function timeOptions(): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  for (let h = 6; h <= 17; h++) {
+    for (const m of [0, 30]) {
+      if (h === 17 && m > 0) break;
+      const hh = String(h).padStart(2, '0');
+      const mm = String(m).padStart(2, '0');
+      const h12 = h % 12 || 12;
+      out.push({ value: `${hh}:${mm}`, label: `${h12}:${mm} ${h >= 12 ? 'p. m.' : 'a. m.'}` });
+    }
+  }
+  return out;
+}
+
 export default function ServicesList({ token, cleanerName, city, services }: ServicesListProps) {
   const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({});
   const [messages, setMessages] = useState<Record<string, string>>({});
@@ -23,6 +57,7 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
 
   // Modal "otro horario"
   const [timeModalFor, setTimeModalFor] = useState<string | null>(null);
+  const [proposedDate, setProposedDate] = useState('');
   const [proposedTime, setProposedTime] = useState('');
   const [submittingTime, setSubmittingTime] = useState(false);
   const [timeError, setTimeError] = useState('');
@@ -60,15 +95,15 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
 
   const openTimeModal = (eventId: string) => {
     setTimeModalFor(eventId);
+    setProposedDate('');
     setProposedTime('');
     setTimeError('');
   };
 
   const submitProposedTime = async () => {
     if (!timeModalFor) return;
-    const value = proposedTime.trim();
-    if (!value) {
-      setTimeError('Escribe a qué hora podrías llegar.');
+    if (!proposedDate || !proposedTime) {
+      setTimeError('Selecciona la fecha y la hora.');
       return;
     }
     setTimeError('');
@@ -77,7 +112,12 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
       const res = await fetch('/api/servicios/propose-time', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, teamup_event_id: timeModalFor, proposed_time: value }),
+        body: JSON.stringify({
+          token,
+          teamup_event_id: timeModalFor,
+          proposed_date: proposedDate,
+          proposed_time: proposedTime,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -205,22 +245,40 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
             className="w-full max-w-sm bg-white rounded-2xl p-6 space-y-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-gray-900">¿A qué hora podrías llegar?</h3>
+            <h3 className="text-lg font-semibold text-gray-900">¿Qué día y hora podrías llegar?</h3>
             <p className="text-sm text-gray-500">
-              Escribe el horario al que sí podrías hacer este servicio. El equipo coordinará con el cliente.
+              Elige cuándo sí podrías hacer este servicio. El equipo coordinará con el cliente.
             </p>
-            <input
-              type="text"
-              value={proposedTime}
-              onChange={(e) => setProposedTime(e.target.value)}
-              placeholder="Ej: a las 2 pm, después de las 13:00..."
-              autoFocus
-              disabled={submittingTime}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submitProposedTime();
-              }}
-            />
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-sm font-medium text-gray-700">Fecha</span>
+                <select
+                  value={proposedDate}
+                  onChange={(e) => setProposedDate(e.target.value)}
+                  disabled={submittingTime}
+                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                >
+                  <option value="">Selecciona una fecha…</option>
+                  {dateOptions().map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium text-gray-700">Hora (hasta las 5:00 p. m.)</span>
+                <select
+                  value={proposedTime}
+                  onChange={(e) => setProposedTime(e.target.value)}
+                  disabled={submittingTime}
+                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                >
+                  <option value="">Selecciona una hora…</option>
+                  {timeOptions().map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
             {timeError && <p className="text-sm text-red-600">{timeError}</p>}
             <div className="flex gap-3 pt-1">
               <button

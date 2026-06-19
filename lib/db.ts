@@ -207,8 +207,12 @@ export interface AvailableService {
   service_time_text: string | null;
   service_date: string | null;
   vacuum_required: boolean | null;
-  /** TRUE si el servicio fue cancelado de último minuto (tag cancelado_desde_la_app) */
-  cancelado_last_min?: boolean;
+  /** TRUE si tiene el tag cancelado_desde_la_app (cancelado/declinado desde la app) */
+  cancelado_app?: boolean;
+  /** TRUE si está registrado como cancelación de último minuto (tabla last_min_cancellations) */
+  last_min?: boolean;
+  /** ts del mensaje de Zapier en #cancelacion-de-ultimo-minuto (para responder en el hilo) */
+  slack_message_id?: string | null;
 }
 
 /**
@@ -233,13 +237,15 @@ export async function getAvailableServicesForCleaner(
     );
     const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
     const contracts = data?.contracts ?? [];
-    // Solo servicios cancelados de último minuto (los demás filtros — ciudad, género,
-    // aspiradora, conflicto de horario — ya los aplica el RPC).
-    const cancelled = contracts.filter((c) => c.cancelado_last_min === true);
-    // Orden por fecha del servicio (v1: sin distancia)
-    return cancelled.sort((a, b) =>
-      String(a.service_date || '').localeCompare(String(b.service_date || '')),
-    );
+    // Mostrar cancelados de último minuto y declinados desde la app (los demás filtros
+    // — ciudad, género, aspiradora, conflicto, Confirmado+Sin asignar — los aplica el RPC).
+    const visibles = contracts.filter((c) => c.last_min === true || c.cancelado_app === true);
+    // Orden: primero los de último minuto, luego los declinados; cada grupo por fecha.
+    return visibles.sort((a, b) => {
+      const rank = (c: AvailableService) => (c.last_min ? 0 : 1);
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return String(a.service_date || '').localeCompare(String(b.service_date || ''));
+    });
   } catch (error) {
     console.error('DB getAvailableServicesForCleaner error:', error);
     return [];
