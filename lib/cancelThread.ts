@@ -14,7 +14,9 @@ function normalize(s: string): string {
 
 interface CancelRow {
   client_name: string | null;
+  city: string | null;
   start_teamup_local: string | null;
+  fecha_es: string | null;
 }
 interface SlackMsg {
   ts: string;
@@ -37,7 +39,9 @@ export async function replyInCancellationThread(eventId: string, text: string): 
   }
   try {
     const { rows } = await getPool().query<CancelRow>(
-      `SELECT client_name, to_char(start_teamup_local, 'YYYY-MM-DD HH24:MI') AS start_teamup_local
+      `SELECT client_name, city,
+              to_char(start_teamup_local, 'YYYY-MM-DD HH24:MI') AS start_teamup_local,
+              "Glide".format_spanish_date(start_teamup_local::timestamptz) AS fecha_es
        FROM "Glide".recent_contracts WHERE teamup_event_id = $1 LIMIT 1`,
       [eventId],
     );
@@ -80,10 +84,26 @@ export async function replyInCancellationThread(eventId: string, text: string): 
       }
     }
 
+    // Si no se encontró el hilo de Zapier, el mensaje va suelto -> incluir los
+    // datos del servicio para que el equipo tenga el contexto.
+    let finalText = text;
+    if (!threadTs) {
+      const cityLabel = (r?.city || '').replace(/_/g, ' ');
+      finalText = [
+        text,
+        '',
+        '_(No se encontró el aviso original de Zapier para enlazar — datos del servicio:)_',
+        `*Cliente:* ${r?.client_name || '—'}`,
+        ...(cityLabel ? [`*Ciudad:* ${cityLabel}`] : []),
+        ...(r?.fecha_es ? [`*Fecha del servicio:* ${r.fecha_es}`] : []),
+        `*ID del servicio:* ${eventId}`,
+      ].join('\n');
+    }
+
     const res = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ channel, text, ...(threadTs ? { thread_ts: threadTs } : {}) }),
+      body: JSON.stringify({ channel, text: finalText, ...(threadTs ? { thread_ts: threadTs } : {}) }),
     });
     const pd = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     if (!pd.ok) console.error('[SLACK_CANCELACION] chat.postMessage error:', pd.error || 'unknown');
