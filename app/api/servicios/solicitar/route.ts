@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBrowseCleanerByToken, requestServiceForCleaner } from '@/lib/db';
 import { notifyServiceResponse } from '@/lib/cancelThread';
+import { notifyClientReplacement } from '@/lib/clientNotify';
 import { BOLSA_DISPONIBLE } from '@/lib/flags';
 
 type AssignOutcome = 'success' | 'already_assigned' | 'failed';
@@ -49,8 +50,9 @@ export async function POST(req: NextRequest) {
         action: 'accept',
         cleanerName: cleaner.cleaner_name || 'Una cleaner',
       });
-      // TODO: avisar a la clienta por Quo + correo que va un cleaner de reemplazo
-      // (pendiente: templates que pondrá Alan en comentarios).
+      // Aviso a la clienta por QUO + correo (va un cleaner de reemplazo),
+      // respetando sus canales activos (rappelopenphone / rappelcorreo).
+      await notifyClientReplacement(String(teamup_event_id));
     }
 
     return NextResponse.json({
