@@ -213,6 +213,8 @@ export interface AvailableService {
   last_min?: boolean;
   /** ts del mensaje de Zapier en #cancelacion-de-ultimo-minuto (para responder en el hilo) */
   slack_message_id?: string | null;
+  /** TRUE si el servicio es para hoy..hoy+2 (los declinados solo se muestran dentro de esta ventana) */
+  en_ventana_2d?: boolean;
 }
 
 /**
@@ -237,9 +239,12 @@ export async function getAvailableServicesForCleaner(
     );
     const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
     const contracts = data?.contracts ?? [];
-    // Mostrar cancelados de último minuto y declinados desde la app (los demás filtros
-    // — ciudad, género, aspiradora, conflicto, Confirmado+Sin asignar — los aplica el RPC).
-    const visibles = contracts.filter((c) => c.last_min === true || c.cancelado_app === true);
+    // Mostrar: cancelados de último minuto (hasta asignar/caducar) y declinados desde la
+    // app SOLO si la fecha es ≤ 2 días. (Los demás filtros — ciudad, género, aspiradora,
+    // conflicto, Confirmado+Sin asignar — los aplica el RPC.)
+    const visibles = contracts.filter(
+      (c) => c.last_min === true || (c.cancelado_app === true && c.en_ventana_2d === true),
+    );
     // Orden: primero los de último minuto, luego los declinados; cada grupo por fecha.
     return visibles.sort((a, b) => {
       const rank = (c: AvailableService) => (c.last_min ? 0 : 1);
