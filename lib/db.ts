@@ -215,6 +215,8 @@ export interface AvailableService {
   slack_message_id?: string | null;
   /** TRUE si el servicio es para hoy..hoy+2 (los declinados solo se muestran dentro de esta ventana) */
   en_ventana_2d?: boolean;
+  /** TRUE si la hora de inicio del servicio ya pasó (en la zona horaria real de la ciudad) */
+  ya_paso?: boolean;
 }
 
 /**
@@ -243,7 +245,9 @@ export async function getAvailableServicesForCleaner(
     // app SOLO si la fecha es ≤ 2 días. (Los demás filtros — ciudad, género, aspiradora,
     // conflicto, Confirmado+Sin asignar — los aplica el RPC.)
     const visibles = contracts.filter(
-      (c) => c.last_min === true || (c.cancelado_app === true && c.en_ventana_2d === true),
+      (c) =>
+        c.ya_paso !== true &&
+        (c.last_min === true || (c.cancelado_app === true && c.en_ventana_2d === true)),
     );
     // Orden: primero los de último minuto, luego los declinados; cada grupo por fecha.
     return visibles.sort((a, b) => {
