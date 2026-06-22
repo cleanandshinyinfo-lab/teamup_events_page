@@ -246,11 +246,12 @@ export async function getAvailableServicesForCleaner(
     // conflicto, Confirmado+Sin asignar — los aplica el RPC.)
     const visibles = contracts.filter(
       (c) =>
-        // Último minuto: se muestra aunque la hora ya haya pasado (siempre es del mismo día,
-        // porque el RPC ya excluye fechas anteriores a hoy).
-        c.last_min === true ||
-        // Declinados: solo dentro de la ventana de 2 días y si la hora NO ha pasado.
-        (c.cancelado_app === true && c.en_ventana_2d === true && c.ya_paso !== true),
+        // En cuanto el servicio EMPIEZA (la hora de inicio pasó) se deja de mostrar,
+        // tanto último minuto como declinados.
+        c.ya_paso !== true &&
+        // Último minuto: se muestra hasta que empieza. Declinados: además, solo dentro
+        // de la ventana de 2 días.
+        (c.last_min === true || (c.cancelado_app === true && c.en_ventana_2d === true)),
     );
     // Orden: primero los de último minuto, luego los declinados; cada grupo por fecha.
     return visibles.sort((a, b) => {
