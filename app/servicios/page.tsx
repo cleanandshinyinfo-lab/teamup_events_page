@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { getBrowseCleanerByToken, getAvailableServicesForCleaner } from '@/lib/db';
+import { BOLSA_DISPONIBLE } from '@/lib/flags';
 import ServicesList from '@/components/ServicesList';
 
 interface PageProps {
@@ -26,7 +27,25 @@ function ErrorScreen({ message }: { message: string }) {
   );
 }
 
+function PausedScreen() {
+  return (
+    <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-8 text-center space-y-2">
+        <div className="text-4xl">⏸️</div>
+        <p className="text-gray-800 font-semibold text-lg">Bolsa de servicios en pausa</p>
+        <p className="text-gray-600 text-sm">
+          Por el momento no hay servicios disponibles para tomar. Te avisaremos cuando se reactive. ¡Gracias!
+        </p>
+      </div>
+    </main>
+  );
+}
+
 export default async function ServiciosPage({ searchParams }: PageProps) {
+  if (!BOLSA_DISPONIBLE) {
+    return <PausedScreen />;
+  }
+
   const { c: token } = await searchParams;
 
   if (!token) {

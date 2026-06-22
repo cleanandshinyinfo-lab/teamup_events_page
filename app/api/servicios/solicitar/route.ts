@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBrowseCleanerByToken, requestServiceForCleaner } from '@/lib/db';
 import { notifyServiceResponse } from '@/lib/cancelThread';
+import { BOLSA_DISPONIBLE } from '@/lib/flags';
 
 type AssignOutcome = 'success' | 'already_assigned' | 'failed';
 
@@ -18,6 +19,12 @@ function classifyAssignResult(row: { ok?: boolean; message?: string | null }): {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!BOLSA_DISPONIBLE) {
+      return NextResponse.json(
+        { error: 'La bolsa de servicios está en pausa por el momento.' },
+        { status: 503 },
+      );
+    }
     const { token, teamup_event_id } = (await req.json()) as {
       token?: string;
       teamup_event_id?: string;
