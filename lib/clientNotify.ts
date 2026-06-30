@@ -62,14 +62,12 @@ function cleanCleanerName(raw: string | null): string {
 
 const QUO_TEXT: Record<Lang, string> = {
   en:
-    `Hello,\n` +
-    `We've found a cleaner available for your service today, and we will send her to complete your cleaning as planned.\n` +
-    `We have also sent you her profile by email for your reference.\n` +
-    `If you prefer not to proceed with this replacement, please let us know.`,
+    `Good news, we found a cleaner available for your service and will send her to complete your cleaning as planned. ` +
+    `We also sent her profile to your email for reference. ` +
+    `If you prefer not to accept this replacement, please let us know.`,
   fr:
-    `Bonjour\n` +
-    `Nous avons trouvé une intervenante disponible pour votre service d'aujourd'hui, et nous l'enverrons pour réaliser votre ménage comme prévu.\n` +
-    `Nous vous avons également envoyé sa fiche par courriel pour votre référence.\n` +
+    `Bonne nouvelle, nous avons trouvé une nettoyeuse disponible pour votre service et nous l'enverrons pour réaliser votre ménage comme prévu. ` +
+    `Nous vous avons également envoyé sa fiche par courriel pour référence. ` +
     `Si vous préférez ne pas accepter ce remplacement, merci de nous en informer.`,
 };
 
@@ -94,19 +92,19 @@ function emailHtml(cleaners: CleanerProfile[], lang: Lang): { subject: string; h
   const profiles = profileBlockHtml(cleaners, lang);
   if (lang === 'fr') {
     return {
-      subject: "Intervenante de remplacement pour votre service d'aujourd'hui",
+      subject: 'Cleaner de remplacement trouvée pour votre service',
       html:
         `<p style="margin:0 0 12px 0;">Bonjour,</p>` +
-        `<p style="margin:0 0 12px 0;">Nous avons trouvé une intervenante disponible pour votre service d'aujourd'hui, et nous l'enverrons pour réaliser votre ménage comme prévu.</p>` +
+        `<p style="margin:0 0 12px 0;">Bonne nouvelle, nous avons trouvé une nettoyeuse disponible pour votre service et nous l'enverrons pour réaliser votre ménage comme prévu. 👈</p>` +
         profiles +
         `<p style="margin:0 0 12px 0;">Si vous préférez ne pas accepter ce remplacement, merci de nous en informer.</p>`,
     };
   }
   return {
-    subject: 'Replacement cleaner for your service today',
+    subject: 'Replacement cleaner for your service - Clean & Shiny 🧼✨',
     html:
       `<p style="margin:0 0 12px 0;">Hello,</p>` +
-      `<p style="margin:0 0 12px 0;">We've found a cleaner available for your service today, and we will send her to complete your cleaning as planned.</p>` +
+      `<p style="margin:0 0 12px 0;">Good news, we found a cleaner available for your service and will send her to complete your cleaning as planned. 👈</p>` +
       profiles +
       `<p style="margin:0 0 12px 0;">If you prefer not to proceed with this replacement, please let us know.</p>`,
   };
