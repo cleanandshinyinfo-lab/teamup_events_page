@@ -217,6 +217,9 @@ export interface AvailableService {
   en_ventana_2d?: boolean;
   /** TRUE si la hora de inicio del servicio ya pasó (en la zona horaria real de la ciudad) */
   ya_paso?: boolean;
+  /** TRUE si falta menos de 1h para empezar (o ya empezó), en la zona horaria real de la ciudad.
+   *  Para los último-minuto: deshabilita el botón "horario original", deja el de "otro horario". */
+  menos_1h?: boolean;
 }
 
 /**
@@ -241,17 +244,15 @@ export async function getAvailableServicesForCleaner(
     );
     const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
     const contracts = data?.contracts ?? [];
-    // Mostrar: cancelados de último minuto (hasta asignar/caducar) y declinados desde la
-    // app SOLO si la fecha es ≤ 2 días. (Los demás filtros — ciudad, género, aspiradora,
-    // conflicto, Confirmado+Sin asignar — los aplica el RPC.)
-    const visibles = contracts.filter(
-      (c) =>
-        // En cuanto el servicio EMPIEZA (la hora de inicio pasó) se deja de mostrar,
-        // tanto último minuto como declinados.
-        c.ya_paso !== true &&
-        // Último minuto: se muestra hasta que empieza. Declinados: además, solo dentro
-        // de la ventana de 2 días.
-        (c.last_min === true || (c.cancelado_app === true && c.en_ventana_2d === true)),
+    // Mostrar:
+    //  - Último minuto: hasta el FIN DEL DÍA local de la ciudad (aunque su hora ya haya pasado).
+    //    El RPC ya los deja de devolver al pasar el día local, así que aquí no filtramos por ya_paso.
+    //  - Declinados desde la app: solo dentro de la ventana de 2 días y mientras no haya empezado.
+    // (Los demás filtros — ciudad, género, aspiradora, conflicto, Confirmado+Sin asignar — los aplica el RPC.)
+    const visibles = contracts.filter((c) =>
+      c.last_min === true
+        ? true
+        : c.cancelado_app === true && c.en_ventana_2d === true && c.ya_paso !== true,
     );
     // Orden: primero los de último minuto, luego los declinados; cada grupo por fecha.
     return visibles.sort((a, b) => {

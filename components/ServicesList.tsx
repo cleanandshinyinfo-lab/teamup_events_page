@@ -150,6 +150,9 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
         const status = statuses[id] || 'idle';
         const msg = messages[id] || '';
         const proposed = !!proposedFor[id];
+        // Último minuto a <1h del inicio (o ya empezado): se deshabilita tomarlo en el
+        // horario original; solo queda "puedo en otro horario".
+        const originalDisabled = !!svc.last_min && !!svc.menos_1h;
 
         return (
           <div
@@ -195,17 +198,24 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
                 <p className="text-gray-600 font-medium">🔒 {msg || 'Este servicio ya fue tomado.'}</p>
               ) : (
                 <div className="space-y-2">
-                  <button
-                    onClick={() => request(id)}
-                    disabled={status === 'loading'}
-                    className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-xl text-base transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                  >
-                    {status === 'loading' ? (
-                      <span className="animate-spin text-lg">⟳</span>
-                    ) : (
-                      'Solicitar este servicio'
-                    )}
-                  </button>
+                  {originalDisabled ? (
+                    <p className="text-center text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3">
+                      ⏰ Ya no se puede tomar en el horario original (falta menos de 1 hora).
+                      Si puedes llegar más tarde, propón otro horario 👇
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => request(id)}
+                      disabled={status === 'loading'}
+                      className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-xl text-base transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {status === 'loading' ? (
+                        <span className="animate-spin text-lg">⟳</span>
+                      ) : (
+                        'Solicitar este servicio'
+                      )}
+                    </button>
+                  )}
 
                   {proposed ? (
                     <p className="text-center text-sm text-blue-700 font-medium">

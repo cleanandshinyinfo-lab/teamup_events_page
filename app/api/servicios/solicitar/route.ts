@@ -44,15 +44,18 @@ export async function POST(req: NextRequest) {
     const { outcome, message } = classifyAssignResult(row);
 
     if (outcome === 'success') {
-      // Aviso a Slack (rutea según cancelado/declinado).
-      await notifyServiceResponse({
+      // Aviso a Slack (rutea según escenario: último minuto horario original / fecha
+      // modificada en TeamUp / declinado-agendado) y nos dice si toca avisar al cliente.
+      const { notifyClient } = await notifyServiceResponse({
         eventId: String(teamup_event_id),
         action: 'accept',
         cleanerName: cleaner.cleaner_name || 'Una cleaner',
       });
-      // Aviso a la clienta por QUO + correo (va un cleaner de reemplazo),
-      // respetando sus canales activos (rappelopenphone / rappelcorreo).
-      await notifyClientReplacement(String(teamup_event_id));
+      // Aviso a la clienta por QUO + correo (va un cleaner de reemplazo), respetando sus
+      // canales activos. NO se envía en el Escenario 2 (fecha modificada manualmente en TeamUp).
+      if (notifyClient) {
+        await notifyClientReplacement(String(teamup_event_id));
+      }
     }
 
     return NextResponse.json({
