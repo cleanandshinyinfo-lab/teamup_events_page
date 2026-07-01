@@ -163,6 +163,30 @@ async function sendEmail(emails: string[], subject: string, html: string): Promi
  */
 export async function notifyClientReplacement(eventId: string): Promise<void> {
   try {
+    // Dedup: no reenviar el aviso al MISMO servicio (serie o evento) dentro de 6h.
+    // Cubre el caso de que el servicio se acepte más de una vez (dos cleaners, reintentos,
+    // reasignaciones). El INSERT ... ON CONFLICT es atómico, así que también gana la carrera
+    // entre dos aceptaciones casi simultáneas: solo una obtiene el RETURNING y envía.
+    const dedup = await getPool().query(
+      `WITH svc AS (
+         SELECT COALESCE(NULLIF(teamup_series_id, ''), teamup_event_id) AS key
+         FROM "Glide".recent_contracts
+         WHERE teamup_event_id = $1
+         LIMIT 1
+       )
+       INSERT INTO public.client_replacement_notified (service_key, notified_at)
+       SELECT key, now() FROM svc
+       ON CONFLICT (service_key) DO UPDATE
+         SET notified_at = now()
+         WHERE public.client_replacement_notified.notified_at < now() - interval '6 hours'
+       RETURNING service_key`,
+      [eventId],
+    );
+    if (dedup.rowCount === 0) {
+      console.warn('[CLIENT_NOTIFY] aviso duplicado suprimido para', eventId);
+      return;
+    }
+
     const { rows } = await getPool().query<ClientRow>(
       `SELECT rc.client_name, rc.city,
               cd.idioma, cd.rappelopenphoneactivado, cd.rappelcorreoactivado,
