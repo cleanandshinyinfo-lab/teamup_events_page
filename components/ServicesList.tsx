@@ -55,6 +55,9 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
   const [messages, setMessages] = useState<Record<string, string>>({});
   const [proposedFor, setProposedFor] = useState<Record<string, boolean>>({});
 
+  // Pop-up de reconfirmación al aceptar (evita accepts accidentales al navegar)
+  const [confirmFor, setConfirmFor] = useState<string | null>(null);
+
   // Modal "otro horario"
   const [timeModalFor, setTimeModalFor] = useState<string | null>(null);
   const [proposedDate, setProposedDate] = useState('');
@@ -143,6 +146,11 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
     );
   }
 
+  const confirmSvc = confirmFor ? services.find((s) => s.teamup_event_id === confirmFor) : null;
+  const confirmFecha = confirmSvc
+    ? [confirmSvc.service_date_text, confirmSvc.service_time_text].filter(Boolean).join(' · ')
+    : '';
+
   return (
     <div className="space-y-4">
       {services.map((svc) => {
@@ -205,7 +213,7 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
                     </p>
                   ) : (
                     <button
-                      onClick={() => request(id)}
+                      onClick={() => setConfirmFor(id)}
                       disabled={status === 'loading'}
                       className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-xl text-base transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                     >
@@ -245,6 +253,56 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
         {cleanerName ? `${cleanerName} · ` : ''}
         {cityLabel(city)}
       </p>
+
+      {confirmFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setConfirmFor(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 space-y-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-blue-700">Confirma que puedes llegar</h3>
+            <p className="text-sm text-gray-700">
+              Estás aceptando este servicio para el{' '}
+              <span className="font-bold bg-blue-50 text-blue-700 rounded px-1">
+                {confirmFecha || 'la fecha indicada'}
+              </span>
+              .
+            </p>
+            <p className="text-sm text-gray-700">
+              Debes llegar <strong>exactamente ese día y a esa hora</strong>.
+            </p>
+
+            <div className="rounded-xl border border-red-200 bg-red-50 py-3 px-3 text-center">
+              <p className="text-sm text-gray-600 mb-1">Este servicio se asignará a:</p>
+              <p className="text-2xl font-extrabold text-red-600 leading-tight break-words">
+                {cleanerName || 'ti'}
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setConfirmFor(null)}
+                className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const id = confirmFor;
+                  setConfirmFor(null);
+                  request(id);
+                }}
+                className="flex-1 py-2.5 px-4 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                ✓ Sí, confirmo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {timeModalFor && (
         <div
