@@ -7,6 +7,7 @@ const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 // Fechas permitidas: hoy, mañana, pasado mañana (en hora de Toronto), como YYYY-MM-DD.
 function allowedDates(): string[] {
@@ -19,17 +20,24 @@ function allowedDates(): string[] {
   });
 }
 
+// Mismo formato que "Glide".format_spanish_date (§3): "Miércoles, 1ro de julio del 2026 a las 2pm".
 function formatProposed(dateStr: string, timeStr: string): string | null {
   const dm = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const tm = timeStr.match(/^(\d{1,2}):(\d{2})$/);
   if (!dm || !tm) return null;
+  const year = parseInt(dm[1], 10);
   const day = parseInt(dm[3], 10);
   const month = MESES[parseInt(dm[2], 10) - 1];
+  // Mediodía UTC para obtener el día de la semana sin corrimiento de zona horaria.
+  const weekday = DIAS[new Date(`${dateStr}T12:00:00Z`).getUTCDay()];
   const h24 = parseInt(tm[1], 10);
-  const min = tm[2];
+  const min = parseInt(tm[2], 10);
   const h12 = h24 % 12 || 12;
-  const period = h24 >= 12 ? 'p. m.' : 'a. m.';
-  return `el ${day} de ${month} a las ${h12}:${min} ${period}`;
+  const ampm = h24 >= 12 ? 'pm' : 'am';
+  const dayTxt = day === 1 ? '1ro' : String(day);
+  const time = min === 0 ? `${h12}${ampm}` : `${h12}:${tm[2]}${ampm}`;
+  const s = `${weekday}, ${dayTxt} de ${month} del ${year} a las ${time}`;
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export async function POST(req: NextRequest) {

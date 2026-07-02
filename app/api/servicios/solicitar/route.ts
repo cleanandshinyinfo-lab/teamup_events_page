@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getBrowseCleanerByToken, requestServiceForCleaner } from '@/lib/db';
 import { notifyServiceResponse } from '@/lib/cancelThread';
 import { notifyClientReplacement } from '@/lib/clientNotify';
+import { sendCleanerReminder } from '@/lib/cleanerReminder';
 import { BOLSA_DISPONIBLE } from '@/lib/flags';
 
 type AssignOutcome = 'success' | 'already_assigned' | 'failed';
@@ -44,17 +45,25 @@ export async function POST(req: NextRequest) {
     const { outcome, message } = classifyAssignResult(row);
 
     if (outcome === 'success') {
-      // Aviso a Slack (rutea según escenario: último minuto horario original / fecha
-      // modificada en TeamUp / declinado-agendado) y nos dice si toca avisar al cliente.
-      const { notifyClient } = await notifyServiceResponse({
+      // Aviso a Slack (rutea según escenario: Esc.1 / 2.1 / 2.2 / declinado) y nos dice
+      // qué comunicaciones tocan: avisar al cliente y/o recordatorio de WhatsApp a la cleaner.
+      const { notifyClient, sendReminder, reminderKind } = await notifyServiceResponse({
         eventId: String(teamup_event_id),
         action: 'accept',
         cleanerName: cleaner.cleaner_name || 'Una cleaner',
       });
       // Aviso a la clienta por QUO + correo (va un cleaner de reemplazo), respetando sus
-      // canales activos. NO se envía en el Escenario 2 (fecha modificada manualmente en TeamUp).
+      // canales activos. Solo Esc.1 y Esc.2.1 (NO Esc.2.2 ni declinados).
       if (notifyClient) {
         await notifyClientReplacement(String(teamup_event_id));
+      }
+      // Recordatorio de WhatsApp a la cleaner que aceptó (Esc.1/2.1/2.2 y declinados).
+      if (sendReminder && cleaner.subcalendar_id) {
+        await sendCleanerReminder({
+          eventId: String(teamup_event_id),
+          subcalendarId: cleaner.subcalendar_id,
+          kind: reminderKind,
+        });
       }
     }
 

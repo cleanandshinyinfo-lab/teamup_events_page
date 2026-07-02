@@ -225,19 +225,22 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
                     </button>
                   )}
 
-                  {proposed ? (
-                    <p className="text-center text-sm text-blue-700 font-medium">
-                      🕐 Propuesta de horario enviada al equipo
-                    </p>
-                  ) : (
-                    <button
-                      onClick={() => openTimeModal(id)}
-                      disabled={status === 'loading'}
-                      className="w-full py-2.5 px-6 bg-white hover:bg-blue-50 active:bg-blue-100 text-blue-700 font-semibold rounded-xl text-sm border border-blue-300 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                    >
-                      🕐 Puedo, pero en otro horario
-                    </button>
-                  )}
+                  {/* "Otro horario" solo para cancelados de último minuto. Los declinados
+                      solo se pueden tomar en su horario original (§13 de la guía). */}
+                  {svc.last_min &&
+                    (proposed ? (
+                      <p className="text-center text-sm text-blue-700 font-medium">
+                        🕐 Propuesta de horario enviada al equipo
+                      </p>
+                    ) : (
+                      <button
+                        onClick={() => openTimeModal(id)}
+                        disabled={status === 'loading'}
+                        className="w-full py-2.5 px-6 bg-white hover:bg-blue-50 active:bg-blue-100 text-blue-700 font-semibold rounded-xl text-sm border border-blue-300 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                      >
+                        🕐 Puedo, pero en otro horario
+                      </button>
+                    ))}
 
                   {status === 'error' && msg && (
                     <p className="text-sm text-red-600 text-center">{msg}</p>
@@ -276,10 +279,14 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
             </p>
 
             <div className="rounded-xl border border-red-200 bg-red-50 py-3 px-3 text-center">
-              <p className="text-sm text-gray-600 mb-1">Este servicio se asignará a:</p>
+              <p className="text-sm text-gray-600 mb-1">Se aceptará en nombre de:</p>
               <p className="text-2xl font-extrabold text-red-600 leading-tight break-words">
                 {cleanerName || 'ti'}
               </p>
+            </div>
+
+            <div className="rounded-md border-l-4 border-orange-500 bg-orange-50 px-3 py-2.5 text-sm font-bold text-gray-800">
+              Si tú no eres la cleaner {cleanerName || 'indicada'}, por favor comunícate con nosotros.
             </div>
 
             <div className="flex gap-3 pt-1">
