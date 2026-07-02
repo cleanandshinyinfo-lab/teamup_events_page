@@ -16,35 +16,58 @@ function cityLabel(city: string | null): string {
   return (city || '').replace(/_/g, ' ');
 }
 
-// Fechas permitidas: día actual, mañana y pasado mañana (hora de Toronto).
+// service_date del RPC = start_teamup_local (hora local del servicio), ISO sin zona:
+// "2026-08-01T14:00:00". Devolvemos la parte de fecha y de hora (HH:MM) por separado.
+function serviceDatePart(serviceStart: string | null): string | null {
+  return serviceStart && serviceStart.length >= 10 ? serviceStart.slice(0, 10) : null;
+}
+function serviceTimePart(serviceStart: string | null): string | null {
+  return serviceStart && serviceStart.length >= 16 ? serviceStart.slice(11, 16) : null;
+}
+
+// Fechas permitidas: día actual, mañana y pasado mañana (hora de Toronto), pero SOLO las
+// que sean >= la fecha del servicio (no se puede proponer un día anterior al servicio).
 // value = YYYY-MM-DD, label = la fecha real (ej. "viernes, 19 de junio").
-function dateOptions(): { value: string; label: string }[] {
+function dateOptions(serviceStart: string | null): { value: string; label: string }[] {
+  const svcDate = serviceDatePart(serviceStart);
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
   const base = new Date(`${today}T12:00:00Z`);
-  return [0, 1, 2].map((d) => {
+  const out: { value: string; label: string }[] = [];
+  for (const d of [0, 1, 2]) {
     const x = new Date(base);
     x.setUTCDate(x.getUTCDate() + d);
     const iso = x.toISOString().slice(0, 10);
+    if (svcDate && iso < svcDate) continue; // nunca antes del día del servicio
     const label = x.toLocaleDateString('es-ES', {
       timeZone: 'UTC',
       weekday: 'long',
       day: 'numeric',
       month: 'long',
     });
-    return { value: iso, label };
-  });
+    out.push({ value: iso, label });
+  }
+  return out;
 }
 
-// Horas: cada 30 min, hasta las 5:00 p. m.
-function timeOptions(): { value: string; label: string }[] {
+// Horas: cada 30 min, hasta las 5:00 p. m. Si la fecha elegida es el MISMO día del servicio,
+// solo se ofrecen horas ESTRICTAMENTE posteriores a la hora de inicio del servicio.
+function timeOptions(
+  serviceStart: string | null,
+  selectedDate: string,
+): { value: string; label: string }[] {
+  const svcDate = serviceDatePart(serviceStart);
+  const svcTime = serviceTimePart(serviceStart);
+  const sameDay = !!svcDate && selectedDate === svcDate;
   const out: { value: string; label: string }[] = [];
   for (let h = 6; h <= 17; h++) {
     for (const m of [0, 30]) {
       if (h === 17 && m > 0) break;
       const hh = String(h).padStart(2, '0');
       const mm = String(m).padStart(2, '0');
+      const val = `${hh}:${mm}`;
+      if (sameDay && svcTime && val <= svcTime) continue; // solo después del inicio
       const h12 = h % 12 || 12;
-      out.push({ value: `${hh}:${mm}`, label: `${h12}:${mm} ${h >= 12 ? 'p. m.' : 'a. m.'}` });
+      out.push({ value: val, label: `${h12}:${mm} ${h >= 12 ? 'p. m.' : 'a. m.'}` });
     }
   }
   return out;
@@ -97,8 +120,10 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
   };
 
   const openTimeModal = (eventId: string) => {
+    const svc = services.find((s) => s.teamup_event_id === eventId);
+    const first = dateOptions(svc?.service_date ?? null)[0];
     setTimeModalFor(eventId);
-    setProposedDate('');
+    setProposedDate(first ? first.value : ''); // arranca en la 1ª fecha válida (>= servicio)
     setProposedTime('');
     setTimeError('');
   };
@@ -150,6 +175,10 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
   const confirmFecha = confirmSvc
     ? [confirmSvc.service_date_text, confirmSvc.service_time_text].filter(Boolean).join(' · ')
     : '';
+
+  // Servicio abierto en el modal "otro horario" y su inicio (para limitar fecha/hora).
+  const timeSvc = timeModalFor ? services.find((s) => s.teamup_event_id === timeModalFor) : null;
+  const timeSvcStart = timeSvc?.service_date ?? null;
 
   return (
     <div className="space-y-4">
@@ -324,17 +353,29 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
             <p className="text-sm text-gray-500">
               Elige cuándo sí podrías hacer este servicio. El equipo coordinará con el cliente.
             </p>
+            {(timeSvc?.service_date_text || timeSvc?.service_time_text) && (
+              <p className="text-sm text-gray-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                ⏰ El servicio empieza el{' '}
+                <strong>
+                  {[timeSvc?.service_date_text, timeSvc?.service_time_text].filter(Boolean).join(' · ')}
+                </strong>
+                . Solo puedes proponer una fecha y hora <strong>posteriores</strong>.
+              </p>
+            )}
             <div className="space-y-3">
               <label className="block">
                 <span className="text-sm font-medium text-gray-700">Fecha</span>
                 <select
                   value={proposedDate}
-                  onChange={(e) => setProposedDate(e.target.value)}
+                  onChange={(e) => {
+                    setProposedDate(e.target.value);
+                    setProposedTime(''); // la lista de horas depende de la fecha
+                  }}
                   disabled={submittingTime}
                   className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
                 >
                   <option value="">Selecciona una fecha…</option>
-                  {dateOptions().map((o) => (
+                  {dateOptions(timeSvcStart).map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
@@ -344,11 +385,11 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
                 <select
                   value={proposedTime}
                   onChange={(e) => setProposedTime(e.target.value)}
-                  disabled={submittingTime}
+                  disabled={submittingTime || !proposedDate}
                   className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
                 >
                   <option value="">Selecciona una hora…</option>
-                  {timeOptions().map((o) => (
+                  {timeOptions(timeSvcStart, proposedDate).map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>

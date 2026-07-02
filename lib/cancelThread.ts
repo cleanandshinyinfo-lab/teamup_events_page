@@ -4,8 +4,10 @@ import { getPool } from './db';
 const ALAN = 'U097VJN0WRH';
 const ALEXIS = 'U0614UUFAH4';
 const EUGENIA = 'U0BAVN4D52R';
-// Tag fijo para dar visibilidad en Esc.1/2.1/2.2 (aceptaciones).
-const TEAM_TAGS = `<@${ALAN}> <@${ALEXIS}>`;
+// Tags para las aceptaciones (Esc.1/2.1/2.2): entre semana solo Alexis; finde Alan+Alexis (sin cambios).
+function teamTags(): string {
+  return isWeekendNow() ? `<@${ALAN}> <@${ALEXIS}>` : `<@${ALEXIS}>`;
+}
 
 interface InfoRow {
   client_name: string | null;
@@ -41,9 +43,9 @@ function isWeekendNow(): boolean {
   return wd === 'Sat' || wd === 'Sun';
 }
 
-// Etiquetas para una solicitud de cambio de horario: entre semana Alexis+Alan, finde Eugenia.
+// Etiquetas para una solicitud de cambio de horario: entre semana solo Alexis, finde Eugenia.
 function proposeTags(): string {
-  return isWeekendNow() ? `<@${EUGENIA}>` : `<@${ALEXIS}> <@${ALAN}>`;
+  return isWeekendNow() ? `<@${EUGENIA}>` : `<@${ALEXIS}>`;
 }
 
 function fmtDuration(v: number | string | null): string {
@@ -228,7 +230,7 @@ export async function notifyServiceResponse(params: {
         `*La fecha y hora del servicio según TeamUp es:* ${info.fecha_es || '—'}\n\n` +
         `---\n\n` +
         PASOS_CON_CLIENTE +
-        `\n\n${TEAM_TAGS}`;
+        `\n\n${teamTags()}`;
       if (token && cancelacion) {
         await postSlack({ token, channel: cancelacion, text, threadTs: info.slack_message_id });
       } else if (!cancelacion) {
@@ -252,9 +254,9 @@ export async function notifyServiceResponse(params: {
         `${encabezado}\n\n${cuerpoComun}\n\n---\n\n${PASOS_SIN_CLIENTE}\n\n` +
         `❗️👉 No se mandó la ficha técnica de la cleaner por correo al cliente ni se le mandó un Quo avisándole.\n` +
         `> No es necesario ya que la fecha del servicio es de más de 1 día a futuro y el rappel se mandará ` +
-        `automáticamente un día antes del servicio.\n\n${TEAM_TAGS}`;
+        `automáticamente un día antes del servicio.\n\n${teamTags()}`;
     } else {
-      text = `${encabezado}\n\n${cuerpoComun}\n\n---\n\n${PASOS_CON_CLIENTE}\n\n${TEAM_TAGS}`;
+      text = `${encabezado}\n\n${cuerpoComun}\n\n---\n\n${PASOS_CON_CLIENTE}\n\n${teamTags()}`;
     }
     if (token && cancelacion) {
       await postSlack({ token, channel: cancelacion, text }); // sin threadTs = mensaje suelto

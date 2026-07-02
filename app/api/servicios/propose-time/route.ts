@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBrowseCleanerByToken } from '@/lib/db';
+import { getBrowseCleanerByToken, getPool } from '@/lib/db';
 import { notifyServiceResponse } from '@/lib/cancelThread';
 import { BOLSA_DISPONIBLE } from '@/lib/flags';
 
@@ -85,6 +85,28 @@ export async function POST(req: NextRequest) {
     const cleaner = await getBrowseCleanerByToken(token);
     if (!cleaner) {
       return NextResponse.json({ error: 'Link no válido o expirado' }, { status: 404 });
+    }
+
+    // El horario propuesto debe ser POSTERIOR al inicio del servicio (no se puede proponer
+    // un día/hora anterior). Comparación en hora local del servicio (start_teamup_local).
+    const startCheck = await getPool().query<{ after_start: boolean | null; start_es: string | null }>(
+      `SELECT (($1 || ' ' || $2)::timestamp > rc.start_teamup_local) AS after_start,
+              "Glide".format_spanish_date(rc.start_teamup_local::timestamptz) AS start_es
+         FROM "Glide".recent_contracts rc
+        WHERE rc.teamup_event_id = $3
+        LIMIT 1`,
+      [proposed_date, proposed_time, String(teamup_event_id)],
+    );
+    const chk = startCheck.rows[0];
+    if (chk && chk.after_start === false) {
+      return NextResponse.json(
+        {
+          error: `La fecha y hora deben ser posteriores al inicio del servicio${
+            chk.start_es ? ` (${chk.start_es})` : ''
+          }.`,
+        },
+        { status: 400 },
+      );
     }
 
     await notifyServiceResponse({
