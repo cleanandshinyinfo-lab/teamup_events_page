@@ -97,8 +97,8 @@ const PASOS_SIN_CLIENTE =
  * (registrados en last_min_cancellations) y el flujo aparte de los declinados.
  *
  *  - Esc.1  : acepta en el horario original                -> hilo en #cancelacion + avisa cliente
- *  - Esc.2.1: acepta, fecha movida 0-1 día en TeamUp       -> mensaje suelto en #cancelacion + avisa cliente
- *  - Esc.2.2: acepta, fecha movida 2+ días en TeamUp       -> mensaje suelto en #cancelacion + NO avisa cliente
+ *  - Esc.2.1: acepta, fecha movida 0-1 día en TeamUp       -> hilo en #cancelacion + avisa cliente
+ *  - Esc.2.2: acepta, fecha movida 2+ días en TeamUp       -> hilo en #cancelacion + NO avisa cliente
  *  - Esc.3  : propone otro horario                         -> hilo en #cancelacion + tags, NO avisa cliente
  *  - Declinado: acepta un servicio declinado (no último minuto) -> #agendados, NO avisa cliente
  *
@@ -239,7 +239,8 @@ export async function notifyServiceResponse(params: {
       return result;
     }
 
-    // Esc.2.1 / 2.2: mensaje SUELTO en #cancelacion (no en el hilo).
+    // Esc.2.1 / 2.2: en el hilo de la cancelación si hay slack_message_id (re-cancelaciones
+    // actualizan el ts al mensaje más reciente); suelto solo si no quedó registrado.
     const encabezado =
       `*ESCENARIO #${esc22 ? '2.2' : '2.1'} → Cleaner aceptó el servicio en el nuevo horario "original"*\n` +
       `*Fecha verdaderamente original:* ${info.fecha_original_es || '—'}`;
@@ -259,7 +260,7 @@ export async function notifyServiceResponse(params: {
       text = `${encabezado}\n\n${cuerpoComun}\n\n---\n\n${PASOS_CON_CLIENTE}\n\n${teamTags()}`;
     }
     if (token && cancelacion) {
-      await postSlack({ token, channel: cancelacion, text }); // sin threadTs = mensaje suelto
+      await postSlack({ token, channel: cancelacion, text, threadTs: info.slack_message_id });
     } else if (!cancelacion) {
       console.warn('[SLACK] SLACK_CANCELACION_CHANNEL_ID no configurado');
     }
