@@ -267,6 +267,51 @@ export async function getAvailableServicesForCleaner(
 }
 
 /**
+ * Lista los servicios de la BOLSA (ruta /bolsa, cron 6pm). Fuente propia:
+ * el RPC get_bolsa_contracts (D8) — mismas reglas reales que la app de cleaners
+ * (ciudad, género, aspiradora, conflicto con colchón 30min/1h, Confirmado+Sin
+ * asignar, Airbnb solo Activo/En reserva, "En reserva" solo ocasional/mensual/
+ * airbnb) PERO sin el filtro de disponibilidad por día. Emite los mismos flags
+ * que la UI ya consume (last_min, cancelado_app, ya_paso, menos_1h).
+ *
+ * NO reutiliza getAvailableServicesForCleaner a propósito: esa función y el
+ * flujo de /servicios (cancelaciones) quedan INTACTOS.
+ */
+export async function getBolsaServicesForCleaner(
+  cleaner: BrowseCleaner,
+): Promise<AvailableService[]> {
+  try {
+    const result = await getPool().query(
+      `SELECT public.get_bolsa_contracts($1, $2, $3, $4, $5) AS data`,
+      [
+        cleaner.ciudad,
+        cleaner.subcalendar_id,
+        cleaner.cleaner_name_template ?? cleaner.cleaner_name,
+        cleaner.estado,
+        cleaner.hombre_o_mujer,
+      ],
+    );
+    const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
+    const contracts = data?.contracts ?? [];
+    // Bolsa general: mostramos TODO el pool disponible, no solo cancelaciones.
+    //  - Último minuto: hasta el FIN DEL DÍA local (aunque su hora ya haya pasado).
+    //  - El resto (recurrentes, ocasionales, declinados): mientras no haya empezado.
+    const visibles = contracts.filter((c) =>
+      c.last_min === true ? true : c.ya_paso !== true,
+    );
+    // Orden: primero los de último minuto (urgentes), luego el resto; cada grupo por fecha.
+    return visibles.sort((a, b) => {
+      const rank = (c: AvailableService) => (c.last_min ? 0 : 1);
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return String(a.service_date || '').localeCompare(String(b.service_date || ''));
+    });
+  } catch (error) {
+    console.error('DB getBolsaServicesForCleaner error:', error);
+    return [];
+  }
+}
+
+/**
  * El cleaner solicita (se autoasigna) un servicio. source='servicios_page'
  * (≠ 'invite') hace que el outbox-worker agregue el tag 'solicitado_por_cleaner'.
  */
