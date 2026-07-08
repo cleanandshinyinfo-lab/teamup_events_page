@@ -17,35 +17,6 @@ import {
   QUO_FR_TEMPLATE,
 } from './rappelTemplates';
 
-/**
- * Rappel (§8): recordatorio al CLIENTE (1 SMS vía Quo/OpenPhone + 1 correo, EN/FR) con
- * los detalles del servicio. Normalmente sale automático a las 9am del día anterior
- * (cron de `service-reminders`, que NO se toca aquí). Este módulo cubre el hueco: cuando
- * una cleaner ACEPTA un servicio de la bolsa y el rappel de las 9am de ESE servicio ya
- * pasó sin haberlo cubierto (Escenario 2), lo dispara en el momento.
- *
- * Escenario 1 vs 2:
- *  - rappelDueAt = 09:00 hora LOCAL de la ciudad del servicio, del día ANTES de la fecha
- *    del servicio (fecha calculada igual que el cron de origen: día calendario en TZ
- *    America/Toronto — ver comentario en fetchRappelRow).
- *  - Si ya existe fila en public.service_reminders_sent para (teamup_event_id,
- *    service_date) -> ya se mandó (por el cron o por un accept anterior). No reenviar.
- *  - Si NO existe fila y now >= rappelDueAt -> Escenario 2: mandar AHORA + insertar la
- *    fila (bloquea al cron de 9am para que no lo duplique).
- *  - Si NO existe fila y now < rappelDueAt -> Escenario 1: no mandar, lo cubre el cron.
- *
- * Best-effort: sendRappel() nunca lanza. Un fallo aquí NUNCA debe romper la aceptación
- * del servicio (endpoint /api/servicios/solicitar).
- */
-
-// ---------------------------------------------------------------------------------
-// Zona horaria real por ciudad — SOLO para decidir el Escenario (rappelDueAt). El
-// TEXTO de fecha/hora que ve el cliente en el correo/SMS sigue formateado en TZ
-// America/Toronto siempre, igual que en producción (ver formatDateTime más abajo);
-// eso es un comportamiento heredado de service-reminders/src/lib/render.js, no un bug
-// nuevo introducido aquí.
-// Mapeo idéntico a CRON_CITY_GROUPS de service-reminders/src/lib/config.js.
-// ---------------------------------------------------------------------------------
 const CITY_TIMEZONE: Record<string, string> = {
   montreal: 'America/Toronto',
   quebec: 'America/Toronto',
@@ -107,11 +78,6 @@ const STATIC_LINKS = {
   },
 };
 
-// ---------------------------------------------------------------------------------
-// Fila con todos los datos del cliente/servicio necesarios para el rappel. Adaptado
-// de service-reminders/src/lib/queries.js (listServicesNeedingReminder), acotado a UN
-// solo teamup_event_id (ver fetchRappelRow).
-// ---------------------------------------------------------------------------------
 interface RappelRow {
   teamup_event_id: string;
   client_name: string | null;
@@ -194,11 +160,6 @@ async function fetchRappelRow(eventId: string): Promise<RappelRow | null> {
   return rows[0] ?? null;
 }
 
-// ---------------------------------------------------------------------------------
-// Conversión de "hora de pared en TZ X" -> instante UTC, sin dependencias externas.
-// Técnica estándar: formatear una fecha candidata en la TZ objetivo para medir su
-// offset real (respeta DST), y converger en máx. 2 iteraciones.
-// ---------------------------------------------------------------------------------
 function tzOffsetMs(instant: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -240,7 +201,6 @@ function zonedWallClockToUtc(
   return new Date(guessMs);
 }
 
-/** rappelDueAt = 09:00 hora local de la ciudad, del día ANTES de `serviceDateStr`. */
 function computeRappelDueAt(serviceDateStr: string, city: string | null): Date {
   const [y, m, d] = serviceDateStr.split('-').map(Number);
   const dueDateMs = Date.UTC(y, m - 1, d) - 24 * 60 * 60 * 1000;
@@ -249,10 +209,6 @@ function computeRappelDueAt(serviceDateStr: string, city: string | null): Date {
   return zonedWallClockToUtc(dd.getUTCFullYear(), dd.getUTCMonth() + 1, dd.getUTCDate(), 9, 0, timeZone);
 }
 
-// ---------------------------------------------------------------------------------
-// Builder EN/FR — puerto de service-reminders/src/lib/render.js (buildPlaceholderValues,
-// renderEmail, renderQuo) a TS, usando las plantillas embebidas de ./rappelTemplates.
-// ---------------------------------------------------------------------------------
 function classifyCleaningType(raw: string | null): string | null {
   if (!raw) return null;
   const s = String(raw)
@@ -362,11 +318,6 @@ function safe(v: string | number | null | undefined): string {
   return v == null ? '' : String(v);
 }
 
-// Nota: el tsconfig del proyecto no fija `target` (default ES3 para tsc), así que la
-// unicode property escape `\p{Extended_Pictographic}` (requiere flag `u`, ES2018+) no
-// compila aquí. Se usa el mismo patrón de rangos manuales que ya emplea
-// clientNotify.ts:cleanCleanerName (surrogates astrales + símbolos/dingbats del BMP)
-// en vez de tocar el tsconfig global.
 const EMOJI_RE = new RegExp(
   '[\\uD800-\\uDFFF\\u2190-\\u21FF\\u2300-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u200D]',
   'g',
@@ -393,7 +344,6 @@ function cleanCleanerName(raw: string | null): string {
     .trim();
 }
 
-// Entero si es exacto ("3"), si no decimal con coma ("2,5") — igual que fmtDuration de render.js.
 function fmtDuration(n: number): string {
   if (!Number.isFinite(n)) return '';
   return Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
@@ -493,7 +443,7 @@ function renderTemplate(template: string, values: Record<string, string>): strin
   let out = template;
   for (const [k, v] of Object.entries(values)) {
     const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(escaped, 'g'), v);
+    out = out.replace(new RegExp(escaped, 'g'), () => v);
   }
   return out;
 }
@@ -510,7 +460,9 @@ export function renderRappelEmail(row: RappelRow, lang: Lang): { subject: string
 
 export function renderRappelQuo(row: RappelRow, lang: Lang): { body: string } {
   const values = buildPlaceholderValues(row, lang);
-  values['{{Correo 2}}'] = values['{{Correo 2}}'] ? `, ${values['{{Correo 2}}']}` : '';
+  const c1 = values['{{Correo 1}}'];
+  const c2 = values['{{Correo 2}}'];
+  values['{{Correo 2}}'] = c2 ? (c1 ? `, ${c2}` : c2) : '';
   let body = renderTemplate(lang === 'fr' ? QUO_FR_TEMPLATE : QUO_EN_TEMPLATE, values)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
@@ -531,15 +483,6 @@ export function renderRappelQuo(row: RappelRow, lang: Lang): { body: string } {
   return { body };
 }
 
-// ---------------------------------------------------------------------------------
-// sendRappel — decide el Escenario y, si toca (Esc.2), envía + deja constancia.
-// ---------------------------------------------------------------------------------
-
-/**
- * @param eventId teamup_event_id del servicio recién asignado.
- * @param effectiveDate override de "ahora" para la decisión de Escenario (pruebas/replay
- *   manual). En producción se omite y se usa la hora real.
- */
 export async function sendRappel(eventId: string, effectiveDate?: string | Date): Promise<void> {
   try {
     const now = effectiveDate ? new Date(effectiveDate) : new Date();
@@ -553,8 +496,6 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
 
     const serviceDate = row.service_date_local;
 
-    // ¿Ya se mandó el rappel para este (evento, fecha del servicio)? (cron de 9am o un
-    // accept anterior, p.ej. dos cleaners aceptando el mismo servicio).
     const existing = await getPool().query(
       `SELECT 1 FROM public.service_reminders_sent WHERE teamup_event_id = $1 AND service_date = $2 LIMIT 1`,
       [eventId, serviceDate],
@@ -568,7 +509,6 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
 
     const rappelDueAt = computeRappelDueAt(serviceDate, row.city);
     if (nowSafe < rappelDueAt) {
-      // Escenario 1: el rappel de 9am de este servicio aún no salió -> lo cubre el cron.
       console.log(
         `[RAPPEL] Escenario 1 (aún no toca), lo cubrirá el cron de 9am. event=${eventId} ` +
           `service_date=${serviceDate} dueAt=${rappelDueAt.toISOString()} now=${nowSafe.toISOString()}`,
@@ -576,11 +516,6 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
       return;
     }
 
-    // Escenario 2 candidato: el rappel de 9am ya pasó sin este servicio -> mandarlo ahora.
-    // Filtros de elegibilidad — MISMOS que aplica el cron de 9am (ver
-    // service-reminders/src/lib/reminder-filters.js) para no divergir de lo que el cron
-    // habría decidido. Si algo no aplica todavía, NO reservamos la fila: dejamos que el
-    // cron lo reintente más tarde por si se corrige (factura pagada, ficha cargada, etc.).
     if (!row.client_name_db) {
       console.warn(
         `[RAPPEL] cliente sin match en clientdb (inactivo), no se manda. event=${eventId}`,
@@ -603,10 +538,29 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
     }
 
     const lang = detectLang(row.idioma, row.city);
+    const testMode = process.env.RAPPEL_TEST_MODE !== 'false';
+    const smsEnabled = row.rappelopenphoneactivado !== false;
+    const emailEnabled = row.rappelcorreoactivado !== false;
+    const fromId =
+      OPENPHONE_NUMBER_ID_BY_CITY[String(row.city || '').toLowerCase()] || OPENPHONE_DEFAULT_NUMBER_ID;
 
-    // Reclamo atómico del slot ANTES de enviar: evita doble envío si dos cleaners
-    // aceptan casi simultáneamente (servicio con 2 cleaners) o si el cron de 9am corre
-    // en el mismo instante. Mismo patrón que notifyClientReplacement en clientNotify.ts.
+    if (testMode) {
+      const testPhone = normalizePhone(String(process.env.RAPPEL_TEST_PHONE || '').trim());
+      const testEmail = String(process.env.RAPPEL_TEST_EMAIL || '').trim();
+      if (smsEnabled && testPhone) {
+        await sendQuo(testPhone, renderRappelQuo(row, lang).body, fromId);
+      }
+      if (emailEnabled && testEmail) {
+        const { subject, html } = renderRappelEmail(row, lang);
+        await sendEmail([testEmail], subject, html);
+      }
+      console.log(
+        `[RAPPEL] MODO PRUEBA (no toca service_reminders_sent). event=${eventId} ` +
+          `service_date=${serviceDate} lang=${lang} sms=${smsEnabled && !!testPhone} email=${emailEnabled && !!testEmail}`,
+      );
+      return;
+    }
+
     const claim = await getPool().query(
       `INSERT INTO public.service_reminders_sent (teamup_event_id, service_date, language, sent_at)
        VALUES ($1, $2, $3, now())
@@ -615,21 +569,9 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
       [eventId, serviceDate, lang],
     );
     if ((claim.rowCount ?? 0) === 0) {
-      console.log(
-        `[RAPPEL] otro proceso ya reclamó/envió este rappel (carrera), se omite. event=${eventId}`,
-      );
+      console.log(`[RAPPEL] otro proceso ya reclamó este rappel (carrera), se omite. event=${eventId}`);
       return;
     }
-
-    console.log(`[RAPPEL] Escenario 2, enviando rappel ahora. event=${eventId} service_date=${serviceDate} lang=${lang}`);
-
-    // COMPUERTA DE SEGURIDAD: mientras RAPPEL_TEST_MODE no sea explícitamente 'false',
-    // NINGÚN SMS/correo llega al cliente real — se redirige a RAPPEL_TEST_PHONE /
-    // RAPPEL_TEST_EMAIL. Si no hay destino de prueba configurado, no se manda ese canal
-    // (solo se loguea), igual que el patrón de CLIENT_NOTIFY_TEST_PHONE/EMAIL.
-    const testMode = process.env.RAPPEL_TEST_MODE !== 'false';
-    const testPhone = normalizePhone(String(process.env.RAPPEL_TEST_PHONE || '').trim());
-    const testEmail = String(process.env.RAPPEL_TEST_EMAIL || '').trim();
 
     let emailTo: string[] = [];
     let emailSentAt: Date | null = null;
@@ -637,55 +579,57 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
     let quoSentAt: Date | null = null;
     const errors: string[] = [];
 
-    // --- SMS (Quo/OpenPhone) ---
-    if (row.rappelopenphoneactivado !== false) {
-      const realPhone = pickPhones(row.telefono1, row.telefono2)[0] || null;
-      const phone = testMode ? testPhone || null : realPhone;
-      if (testMode && !testPhone) {
-        console.log(`[RAPPEL] MODO PRUEBA sin RAPPEL_TEST_PHONE, no se manda SMS. event=${eventId}`);
-      } else if (!phone) {
+    if (smsEnabled) {
+      const phone = pickPhones(row.telefono1, row.telefono2)[0] || null;
+      if (!phone) {
         console.warn(`[RAPPEL] cliente sin teléfono, no se manda SMS. event=${eventId}`);
       } else {
         try {
-          const { body } = renderRappelQuo(row, lang);
-          const fromId =
-            OPENPHONE_NUMBER_ID_BY_CITY[String(row.city || '').toLowerCase()] || OPENPHONE_DEFAULT_NUMBER_ID;
-          await sendQuo(phone, body, fromId);
-          quoTo = phone;
-          quoSentAt = new Date();
+          if (await sendQuo(phone, renderRappelQuo(row, lang).body, fromId)) {
+            quoTo = phone;
+            quoSentAt = new Date();
+          } else {
+            errors.push('quo: proveedor rechazó el envío');
+          }
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          errors.push(`quo: ${msg}`);
+          errors.push(`quo: ${e instanceof Error ? e.message : String(e)}`);
           console.error('[RAPPEL] error enviando SMS:', e);
         }
       }
     }
 
-    // --- Correo ---
-    if (row.rappelcorreoactivado !== false) {
-      const realEmails = collectEmails(row.correo1, row.correo2);
-      const emails = testMode ? (testEmail ? [testEmail] : []) : realEmails;
-      if (testMode && !testEmail) {
-        console.log(`[RAPPEL] MODO PRUEBA sin RAPPEL_TEST_EMAIL, no se manda correo. event=${eventId}`);
-      } else if (!emails.length) {
-        console.warn(`[RAPPEL] cliente sin correo, no se manda rappel por correo. event=${eventId}`);
+    if (emailEnabled) {
+      const emails = collectEmails(row.correo1, row.correo2);
+      if (!emails.length) {
+        console.warn(`[RAPPEL] cliente sin correo, no se manda correo. event=${eventId}`);
       } else {
         try {
           const { subject, html } = renderRappelEmail(row, lang);
-          await sendEmail(emails, subject, html);
-          emailTo = emails;
-          emailSentAt = new Date();
+          if (await sendEmail(emails, subject, html)) {
+            emailTo = emails;
+            emailSentAt = new Date();
+          } else {
+            errors.push('email: proveedor rechazó el envío');
+          }
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          errors.push(`email: ${msg}`);
+          errors.push(`email: ${e instanceof Error ? e.message : String(e)}`);
           console.error('[RAPPEL] error enviando correo:', e);
         }
       }
     }
 
-    // Completa la fila reservada con el resultado real (no borra el bloqueo del cron
-    // aunque algo haya fallado: el error queda en last_error para revisión manual, en
-    // vez de reintentar en loop en cada nueva aceptación de este mismo evento).
+    if (!quoSentAt && !emailSentAt && errors.length) {
+      await getPool().query(
+        `DELETE FROM public.service_reminders_sent WHERE teamup_event_id = $1 AND service_date = $2`,
+        [eventId, serviceDate],
+      );
+      console.error(
+        `[RAPPEL] todos los envíos fallaron; se libera el slot para reintento del cron. ` +
+          `event=${eventId} errors=${errors.join(' | ')}`,
+      );
+      return;
+    }
+
     await getPool().query(
       `UPDATE public.service_reminders_sent
          SET email_to = $1, email_sent_at = $2, quo_to = $3, quo_sent_at = $4, last_error = $5
@@ -699,6 +643,10 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
         eventId,
         serviceDate,
       ],
+    );
+    console.log(
+      `[RAPPEL] Escenario 2 enviado. event=${eventId} service_date=${serviceDate} ` +
+        `lang=${lang} sms=${!!quoSentAt} email=${!!emailSentAt}`,
     );
   } catch (err) {
     console.error('[RAPPEL] error inesperado (no bloquea la aceptación):', err);

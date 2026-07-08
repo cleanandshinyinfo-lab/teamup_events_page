@@ -66,10 +66,6 @@ export async function POST(req: NextRequest) {
           kind: reminderKind,
         });
       }
-      // Rappel (§8) al cliente si estamos en Escenario 2 (el rappel de 9am de este
-      // servicio ya pasó sin cubrirlo). sendRappel() ya envuelve todo en try/catch y
-      // nunca lanza, pero se aísla igual aquí: un fallo del rappel NUNCA debe romper
-      // la respuesta de la aceptación.
       try {
         await sendRappel(String(teamup_event_id));
       } catch (rappelError) {

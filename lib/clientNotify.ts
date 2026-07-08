@@ -1,8 +1,6 @@
 import { getPool } from './db';
 
 // OpenPhone phoneNumberId desde el cual sale el SMS, por ciudad (igual que los rappels).
-// Exportado: lib/rappel.ts lo reusa para el envío del rappel (mismo remitente que
-// "equipo de reemplazo" y que el cron de 9am de service-reminders).
 export const OPENPHONE_NUMBER_ID_BY_CITY: Record<string, string> = {
   montreal: 'PNXJQdJZps',
   quebec: 'PNXJQdJZps',
@@ -21,7 +19,6 @@ const CITY_DEFAULT_LANG: Record<string, 'en' | 'fr'> = {
 
 export type Lang = 'en' | 'fr';
 
-// Exportado: mismo detector de idioma que usa lib/rappel.ts.
 export function detectLang(idioma: string | null, city: string | null): Lang {
   const raw = String(idioma || '').trim().toLowerCase();
   if (/fran|french|fr/.test(raw)) return 'fr';
@@ -198,12 +195,11 @@ interface ClientRow {
   cleaners: CleanerProfile[] | null;
 }
 
-// Exportado: lib/rappel.ts lo reusa para el envío del SMS del rappel (mismo proveedor/ruta).
-export async function sendQuo(phone: string, body: string, fromId: string): Promise<void> {
+export async function sendQuo(phone: string, body: string, fromId: string): Promise<boolean> {
   const apiKey = process.env.OPENPHONE_API_KEY;
   if (!apiKey) {
     console.warn('[CLIENT_NOTIFY] OPENPHONE_API_KEY no configurado');
-    return;
+    return false;
   }
   const res = await fetch('https://api.openphone.com/v1/messages', {
     method: 'POST',
@@ -213,16 +209,17 @@ export async function sendQuo(phone: string, body: string, fromId: string): Prom
   });
   if (!res.ok) {
     console.error('[CLIENT_NOTIFY] OpenPhone error:', res.status, await res.text().catch(() => ''));
+    return false;
   }
+  return true;
 }
 
-// Exportado: lib/rappel.ts lo reusa para el envío del correo del rappel (mismo email-proxy).
-export async function sendEmail(emails: string[], subject: string, html: string): Promise<void> {
+export async function sendEmail(emails: string[], subject: string, html: string): Promise<boolean> {
   const url = process.env.EMAIL_PROXY_URL;
   const secret = process.env.EMAIL_PROXY_SECRET;
   if (!url || !secret) {
     console.warn('[CLIENT_NOTIFY] EMAIL_PROXY_URL/SECRET no configurados');
-    return;
+    return false;
   }
   const res = await fetch(`${url.replace(/\/+$/, '')}/email/send`, {
     method: 'POST',
@@ -231,7 +228,11 @@ export async function sendEmail(emails: string[], subject: string, html: string)
     signal: AbortSignal.timeout(10000),
   });
   const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-  if (!data.ok) console.error('[CLIENT_NOTIFY] email-proxy error:', res.status, data.error || 'unknown');
+  if (!data.ok) {
+    console.error('[CLIENT_NOTIFY] email-proxy error:', res.status, data.error || 'unknown');
+    return false;
+  }
+  return true;
 }
 
 /**

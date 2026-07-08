@@ -1,16 +1,4 @@
-/**
- * Plantillas canónicas del rappel (recordatorio al cliente), copiadas 1:1 de
- * service-reminders/src/templates/{email_en,email_fr,quo_en,quo_fr} — el rappel
- * automático de las 9am ya en producción. NO son las plantillas con merge-tags de
- * Glide; son las mismas 4 plantillas con placeholders `{{Token}}` que usa render.js.
- *
- * IMPORTANTE: si se actualiza una plantilla en service-reminders, hay que replicar
- * el cambio aquí a mano (son dos repos/despliegues independientes).
- *
- * Nota: email_fr.html en el repo origen tiene 2 líneas de env vars de Supabase
- * pegadas por error después de `</html>` (líneas 139-140, ajenas al template). Se
- * omiten aquí a propósito — no son parte del contenido del correo.
- */
+// Copiadas 1:1 de service-reminders/src/templates — mantener en sync a mano.
 
 export const EMAIL_EN_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
