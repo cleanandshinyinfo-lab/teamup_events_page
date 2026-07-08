@@ -1,5 +1,11 @@
 import { Pool } from 'pg';
 import { Event, Invitation } from './types';
+import {
+  isDistanceApiConfigured,
+  fetchBolsaServicesWithDistance,
+  selectBolsaServices,
+  bucketTimezone,
+} from './bolsaDistance';
 
 let pool: Pool | null = null;
 
@@ -163,6 +169,8 @@ export interface BrowseCleaner {
   ciudad: string | null;
   estado: string | null;
   hombre_o_mujer: string | null;
+  /** Dirección para geocodificar en la distance-api (recorte ≤90 min de /bolsa) */
+  direccion: string | null;
 }
 
 /**
@@ -179,7 +187,8 @@ export async function getBrowseCleanerByToken(token: string): Promise<BrowseClea
          c.cleaner_name_template,
          c.ciudad,
          c.estado,
-         c.hombre_o_mujer
+         c.hombre_o_mujer,
+         c.direccion
        FROM public.cleaner_browse_links bl
        LEFT JOIN "Glide".cleaners c
          ON c.subcalendar_unique_id = bl.cleaner_subcalendar_id
@@ -267,12 +276,41 @@ export async function getAvailableServicesForCleaner(
 }
 
 /**
- * Lista los servicios de la BOLSA (ruta /bolsa, cron 6pm). Fuente propia:
- * el RPC get_bolsa_contracts (D8) — mismas reglas reales que la app de cleaners
- * (ciudad, género, aspiradora, conflicto con colchón 30min/1h, Confirmado+Sin
- * asignar, Airbnb solo Activo/En reserva, "En reserva" solo ocasional/mensual/
- * airbnb) PERO sin el filtro de disponibilidad por día. Emite los mismos flags
- * que la UI ya consume (last_min, cancelado_app, ya_paso, menos_1h).
+ * Fuente base de la bolsa: RPC get_bolsa_contracts (D8) — mismas reglas reales
+ * que la app de cleaners (ciudad, género, aspiradora, conflicto con colchón
+ * 30min/1h, Confirmado+Sin asignar, Airbnb solo Activo/En reserva, "En reserva"
+ * solo ocasional/mensual/airbnb) PERO sin filtro de disponibilidad por día.
+ * Emite los mismos flags que la UI consume (last_min, cancelado_app, ya_paso).
+ */
+async function getBolsaContractsDirect(cleaner: BrowseCleaner): Promise<AvailableService[]> {
+  const result = await getPool().query(
+    `SELECT public.get_bolsa_contracts($1, $2, $3, $4, $5) AS data`,
+    [
+      cleaner.ciudad,
+      cleaner.subcalendar_id,
+      cleaner.cleaner_name_template || cleaner.cleaner_name,
+      cleaner.estado,
+      cleaner.hombre_o_mujer,
+    ],
+  );
+  const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
+  const contracts = data?.contracts ?? [];
+  const visibles = contracts.filter((c) => (c.last_min === true ? true : c.ya_paso !== true));
+  return visibles.sort((a, b) => {
+    const rank = (c: AvailableService) => (c.last_min ? 0 : 1);
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    return String(a.service_date || '').localeCompare(String(b.service_date || ''));
+  });
+}
+
+/**
+ * Lista los servicios de la BOLSA (ruta /bolsa, cron 6pm).
+ *
+ * Con SERVICES_BY_DISTANCE_API_URL configurada, replica EXACTAMENTE lo que manda
+ * el cron por WhatsApp: llama a la distance-api (misma get_bolsa_contracts) y
+ * recorta a ≤90 min de viaje + ventana mañana/pasado mañana (selectBolsaServices).
+ * Sin esa env (o si la API falla), cae al RPC directo — muestra el pool completo
+ * que cumple las reglas por cleaner, sin el recorte de distancia/ventana.
  *
  * NO reutiliza getAvailableServicesForCleaner a propósito: esa función y el
  * flujo de /servicios (cancelaciones) quedan INTACTOS.
@@ -281,30 +319,18 @@ export async function getBolsaServicesForCleaner(
   cleaner: BrowseCleaner,
 ): Promise<AvailableService[]> {
   try {
-    const result = await getPool().query(
-      `SELECT public.get_bolsa_contracts($1, $2, $3, $4, $5) AS data`,
-      [
-        cleaner.ciudad,
-        cleaner.subcalendar_id,
-        cleaner.cleaner_name_template ?? cleaner.cleaner_name,
-        cleaner.estado,
-        cleaner.hombre_o_mujer,
-      ],
-    );
-    const data = result.rows[0]?.data as { contracts?: AvailableService[] } | null;
-    const contracts = data?.contracts ?? [];
-    // Bolsa general: mostramos TODO el pool disponible, no solo cancelaciones.
-    //  - Último minuto: hasta el FIN DEL DÍA local (aunque su hora ya haya pasado).
-    //  - El resto (recurrentes, ocasionales, declinados): mientras no haya empezado.
-    const visibles = contracts.filter((c) =>
-      c.last_min === true ? true : c.ya_paso !== true,
-    );
-    // Orden: primero los de último minuto (urgentes), luego el resto; cada grupo por fecha.
-    return visibles.sort((a, b) => {
-      const rank = (c: AvailableService) => (c.last_min ? 0 : 1);
-      if (rank(a) !== rank(b)) return rank(a) - rank(b);
-      return String(a.service_date || '').localeCompare(String(b.service_date || ''));
-    });
+    if (isDistanceApiConfigured()) {
+      try {
+        const raw = await fetchBolsaServicesWithDistance(cleaner);
+        return selectBolsaServices(raw, new Date(), bucketTimezone());
+      } catch (distanceError) {
+        console.error(
+          'DB getBolsaServicesForCleaner: distance-api falló, uso RPC directo:',
+          distanceError,
+        );
+      }
+    }
+    return await getBolsaContractsDirect(cleaner);
   } catch (error) {
     console.error('DB getBolsaServicesForCleaner error:', error);
     return [];
