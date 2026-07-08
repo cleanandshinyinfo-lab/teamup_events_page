@@ -3,6 +3,7 @@ import { getBrowseCleanerByToken, requestServiceForCleaner } from '@/lib/db';
 import { notifyServiceResponse } from '@/lib/cancelThread';
 import { notifyClientReplacement } from '@/lib/clientNotify';
 import { sendCleanerReminder } from '@/lib/cleanerReminder';
+import { sendRappel } from '@/lib/rappel';
 import { BOLSA_DISPONIBLE } from '@/lib/flags';
 
 type AssignOutcome = 'success' | 'already_assigned' | 'failed';
@@ -64,6 +65,15 @@ export async function POST(req: NextRequest) {
           subcalendarId: cleaner.subcalendar_id,
           kind: reminderKind,
         });
+      }
+      // Rappel (§8) al cliente si estamos en Escenario 2 (el rappel de 9am de este
+      // servicio ya pasó sin cubrirlo). sendRappel() ya envuelve todo en try/catch y
+      // nunca lanza, pero se aísla igual aquí: un fallo del rappel NUNCA debe romper
+      // la respuesta de la aceptación.
+      try {
+        await sendRappel(String(teamup_event_id));
+      } catch (rappelError) {
+        console.error('[SERVICIOS_SOLICITAR] error en sendRappel (no bloquea la respuesta):', rappelError);
       }
     }
 

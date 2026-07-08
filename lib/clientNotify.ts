@@ -1,14 +1,16 @@
 import { getPool } from './db';
 
 // OpenPhone phoneNumberId desde el cual sale el SMS, por ciudad (igual que los rappels).
-const OPENPHONE_NUMBER_ID_BY_CITY: Record<string, string> = {
+// Exportado: lib/rappel.ts lo reusa para el envío del rappel (mismo remitente que
+// "equipo de reemplazo" y que el cron de 9am de service-reminders).
+export const OPENPHONE_NUMBER_ID_BY_CITY: Record<string, string> = {
   montreal: 'PNXJQdJZps',
   quebec: 'PNXJQdJZps',
   ottawa_gatineau: 'PNXJQdJZps',
   calgary: 'PNFqUz9LL1',
   winnipeg: 'PNFqUz9LL1',
 };
-const OPENPHONE_DEFAULT_NUMBER_ID = 'PNXJQdJZps';
+export const OPENPHONE_DEFAULT_NUMBER_ID = 'PNXJQdJZps';
 const CITY_DEFAULT_LANG: Record<string, 'en' | 'fr'> = {
   montreal: 'fr',
   quebec: 'fr',
@@ -17,9 +19,10 @@ const CITY_DEFAULT_LANG: Record<string, 'en' | 'fr'> = {
   winnipeg: 'en',
 };
 
-type Lang = 'en' | 'fr';
+export type Lang = 'en' | 'fr';
 
-function detectLang(idioma: string | null, city: string | null): Lang {
+// Exportado: mismo detector de idioma que usa lib/rappel.ts.
+export function detectLang(idioma: string | null, city: string | null): Lang {
   const raw = String(idioma || '').trim().toLowerCase();
   if (/fran|french|fr/.test(raw)) return 'fr';
   if (/ingl|english|en/.test(raw)) return 'en';
@@ -27,7 +30,7 @@ function detectLang(idioma: string | null, city: string | null): Lang {
   return CITY_DEFAULT_LANG[String(city || '')] || 'en';
 }
 
-function normalizePhone(raw: string): string {
+export function normalizePhone(raw: string): string {
   const digits = String(raw || '').replace(/[^\d+]/g, '');
   if (!digits) return '';
   if (digits.startsWith('+')) return digits;
@@ -36,7 +39,7 @@ function normalizePhone(raw: string): string {
   return '+' + digits;
 }
 
-function pickPhones(t1: string | null, t2: string | null): string[] {
+export function pickPhones(t1: string | null, t2: string | null): string[] {
   const out: string[] = [];
   for (const raw of [t1, t2]) {
     const p = normalizePhone(String(raw || '').trim());
@@ -45,7 +48,7 @@ function pickPhones(t1: string | null, t2: string | null): string[] {
   return out;
 }
 
-function collectEmails(c1: string | null, c2: string | null): string[] {
+export function collectEmails(c1: string | null, c2: string | null): string[] {
   return [c1, c2].map((e) => String(e || '').trim()).filter(Boolean);
 }
 
@@ -195,7 +198,8 @@ interface ClientRow {
   cleaners: CleanerProfile[] | null;
 }
 
-async function sendQuo(phone: string, body: string, fromId: string): Promise<void> {
+// Exportado: lib/rappel.ts lo reusa para el envío del SMS del rappel (mismo proveedor/ruta).
+export async function sendQuo(phone: string, body: string, fromId: string): Promise<void> {
   const apiKey = process.env.OPENPHONE_API_KEY;
   if (!apiKey) {
     console.warn('[CLIENT_NOTIFY] OPENPHONE_API_KEY no configurado');
@@ -212,7 +216,8 @@ async function sendQuo(phone: string, body: string, fromId: string): Promise<voi
   }
 }
 
-async function sendEmail(emails: string[], subject: string, html: string): Promise<void> {
+// Exportado: lib/rappel.ts lo reusa para el envío del correo del rappel (mismo email-proxy).
+export async function sendEmail(emails: string[], subject: string, html: string): Promise<void> {
   const url = process.env.EMAIL_PROXY_URL;
   const secret = process.env.EMAIL_PROXY_SECRET;
   if (!url || !secret) {
