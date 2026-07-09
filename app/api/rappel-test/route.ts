@@ -41,6 +41,32 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // ?emailtest=1 -> llama al email-proxy DIRECTO y devuelve su respuesta cruda
+  // (message_id = envió; error = falla real de Gmail). Diagnóstico de entrega.
+  if (req.nextUrl.searchParams.get('emailtest') === '1') {
+    const url = process.env.EMAIL_PROXY_URL;
+    const psecret = process.env.EMAIL_PROXY_SECRET;
+    const to = String(process.env.RAPPEL_TEST_EMAIL || '');
+    if (!url || !psecret) {
+      return NextResponse.json({ error: 'EMAIL_PROXY_URL/SECRET no configurados en Vercel' }, { status: 500 });
+    }
+    if (!to) {
+      return NextResponse.json({ error: 'RAPPEL_TEST_EMAIL no configurado' }, { status: 500 });
+    }
+    const r = await fetch(`${url.replace(/\/+$/, '')}/email/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-webhook-secret': psecret },
+      body: JSON.stringify({
+        to,
+        subject: 'Prueba directa email-proxy (rappel QA)',
+        html: '<p>Prueba directa del email-proxy desde /api/rappel-test?emailtest=1.</p>',
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const body = await r.text().catch(() => '');
+    return NextResponse.json({ proxy_http: r.status, proxy_body: body.slice(0, 800) });
+  }
+
   if (!event) {
     return NextResponse.json({ error: 'falta ?event=<teamup_event_id>' }, { status: 400 });
   }
