@@ -92,7 +92,7 @@ export const EMAIL_EN_TEMPLATE = `<!DOCTYPE html>
         <p style="margin:0 0 8px 0; color:#4a90e2; font-size:15px;"><strong>Here are the payment instructions 🧾:</strong></p>
         <p style="margin:0 0 8px 0;">Payment is made via Interac (E-Transfer) by sending the funds to our email address <a href="mailto:cleanandshiny.gestion@gmail.com" style="color:#4a90e2;">cleanandshiny.gestion@gmail.com</a>. You can pay before the service, on the day of the service, or after receiving the invoice (which will be sent to you within 24 hours after the service).</p>
         <div style="border-left:4px solid #f97316; background-color:#fff7ed; padding:12px 16px; margin:0 0 10px 0; border-radius:0 6px 6px 0;">
-          <p style="margin:0; font-size:14px; color:#374151;"><strong>Just a reminder:</strong> if you wish to cancel or reschedule the service on the same day, a cancellation fee of $50 per cleaner will apply.</p>
+          <p style="margin:0; font-size:14px; color:#374151;"><strong>Just a reminder:</strong> if you wish to cancel or reschedule the service after 2pm of the day you received the reminder, a $20 cancellation fee will apply in accordance with our booking policy, paid entirely to your cleaning team. Please note that with a last-minute cancellation, your cleaner loses a full day of work and income, as it's too late to book another service in that time slot.</p>
         </div>
         <div style="border-left:4px solid #d1d5db; background-color:#f9fafb; padding:12px 16px; margin:0 0 24px 0; border-radius:0 6px 6px 0;">
           <p style="margin:0; font-size:14px; color:#6b7280;">If you requested the credit card payment option, the link will be sent to you along with the invoice.</p>
@@ -228,7 +228,7 @@ export const EMAIL_FR_TEMPLATE = `<!DOCTYPE html>
 
         <!-- Callout orange — avis d'annulation -->
         <div style="border-left:4px solid #f97316; background-color:#fff7ed; padding:12px 16px; margin:0 0 10px 0; border-radius:0 6px 6px 0;">
-          <p style="margin:0; font-size:14px; color:#374151;"><strong>Petit rappel :</strong> si vous souhaitez annuler ou reporter le service le jour même, des frais d'annulation de 50 $ par agent s'appliqueront.</p>
+          <p style="margin:0; font-size:14px; color:#374151;"><strong>Petit rappel :</strong> si vous souhaitez annuler ou reporter votre service après 14 h, le jour de la réception de votre rappel, des frais d'annulation de 20 $ seront appliqués, conformément à notre politique de réservation, et remis intégralement à votre équipe de nettoyage. Veuillez noter qu'en cas d'annulation de dernière minute, votre équipe de nettoyage perd une journée complète de travail et de revenus, puisqu'il est trop tard pour combler ce créneau avec un autre service.</p>
         </div>
 
         <!-- Callout gris — option carte de crédit -->
