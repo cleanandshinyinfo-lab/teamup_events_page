@@ -28,9 +28,10 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
-    const { token, teamup_event_id } = (await req.json()) as {
+    const { token, teamup_event_id, source } = (await req.json()) as {
       token?: string;
       teamup_event_id?: string;
+      source?: string;
     };
 
     if (!token || !teamup_event_id) {
@@ -42,7 +43,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Link no válido o expirado' }, { status: 404 });
     }
 
-    const row = await requestServiceForCleaner(cleaner, String(teamup_event_id));
+    // Whitelist: solo 'bolsa' (bolsa de servicios) marca distinto; cualquier otra
+    // cosa cae al default histórico 'servicios_page' (vista de cancelaciones).
+    const assignSource = source === 'bolsa' ? 'bolsa' : 'servicios_page';
+    const row = await requestServiceForCleaner(cleaner, String(teamup_event_id), assignSource);
     const { outcome, message } = classifyAssignResult(row);
 
     if (outcome === 'success') {

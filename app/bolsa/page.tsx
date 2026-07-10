@@ -74,6 +74,7 @@ export default async function BolsaPage({ searchParams }: PageProps) {
           cleanerName={cleaner.cleaner_name}
           city={cleaner.ciudad}
           services={services}
+          source="bolsa"
         />
       </div>
     </main>

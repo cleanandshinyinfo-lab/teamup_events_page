@@ -10,6 +10,8 @@ interface ServicesListProps {
   cleanerName: string | null;
   city: string | null;
   services: AvailableService[];
+  /** Pantalla de origen para medir conversión: 'bolsa' o 'servicios_page' (default). */
+  source?: string;
 }
 
 function cityLabel(city: string | null): string {
@@ -73,7 +75,7 @@ function timeOptions(
   return out;
 }
 
-export default function ServicesList({ token, cleanerName, city, services }: ServicesListProps) {
+export default function ServicesList({ token, cleanerName, city, services, source = 'servicios_page' }: ServicesListProps) {
   const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({});
   const [messages, setMessages] = useState<Record<string, string>>({});
   const [proposedFor, setProposedFor] = useState<Record<string, boolean>>({});
@@ -94,7 +96,7 @@ export default function ServicesList({ token, cleanerName, city, services }: Ser
       const res = await fetch('/api/servicios/solicitar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, teamup_event_id: eventId }),
+        body: JSON.stringify({ token, teamup_event_id: eventId, source }),
       });
       const data = await res.json();
 

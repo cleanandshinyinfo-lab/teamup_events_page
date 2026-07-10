@@ -338,16 +338,21 @@ export async function getBolsaServicesForCleaner(
 }
 
 /**
- * El cleaner solicita (se autoasigna) un servicio. source='servicios_page'
- * (≠ 'invite') hace que el outbox-worker agregue el tag 'solicitado_por_cleaner'.
+ * El cleaner solicita (se autoasigna) un servicio. `source` identifica de qué
+ * pantalla vino la aceptación: 'bolsa' (bolsa de servicios) o 'servicios_page'
+ * (vista de cancelaciones). Ambos son ≠ 'invite', así que el outbox-worker
+ * igual agrega el tag 'solicitado_por_cleaner' (solo excluye source='invite').
+ * Queda en teamup_sync_outbox.payload.source para poder medir la conversión de
+ * la bolsa por separado.
  */
 export async function requestServiceForCleaner(
   cleaner: BrowseCleaner,
   eventId: string,
+  source = 'servicios_page',
 ): Promise<Record<string, unknown>> {
   const result = await getPool().query(
     `SELECT * FROM public.assign_contract_to_cleaner_v2($1, $2, $3, $4) LIMIT 1`,
-    [eventId, cleaner.subcalendar_id, cleaner.hombre_o_mujer, 'servicios_page'],
+    [eventId, cleaner.subcalendar_id, cleaner.hombre_o_mujer, source],
   );
   return result.rows[0] ?? {};
 }
