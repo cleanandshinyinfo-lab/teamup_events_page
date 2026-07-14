@@ -483,7 +483,10 @@ export function renderRappelQuo(row: RappelRow, lang: Lang): { body: string } {
   return { body };
 }
 
-export async function sendRappel(eventId: string, effectiveDate?: string | Date): Promise<void> {
+// Devuelve true solo si el rappel realmente se envió en el acto (Escenario 2, al
+// menos un canal salió). Cualquier otro camino (aún no toca, ya enviado, cliente
+// sin datos, modo prueba, carrera perdida, fallo total) devuelve false.
+export async function sendRappel(eventId: string, effectiveDate?: string | Date): Promise<boolean> {
   try {
     const now = effectiveDate ? new Date(effectiveDate) : new Date();
     const nowSafe = Number.isNaN(now.getTime()) ? new Date() : now;
@@ -491,7 +494,7 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
     const row = await fetchRappelRow(eventId);
     if (!row) {
       console.warn('[RAPPEL] servicio sin fila en recent_contracts, no se manda. event=', eventId);
-      return;
+      return false;
     }
 
     const serviceDate = row.service_date_local;
@@ -504,7 +507,7 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
       console.log(
         `[RAPPEL] ya estaba enviado para event=${eventId} service_date=${serviceDate}, no se reenvía.`,
       );
-      return;
+      return false;
     }
 
     const rappelDueAt = computeRappelDueAt(serviceDate, row.city);
@@ -513,28 +516,28 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
         `[RAPPEL] Escenario 1 (aún no toca), lo cubrirá el cron de 9am. event=${eventId} ` +
           `service_date=${serviceDate} dueAt=${rappelDueAt.toISOString()} now=${nowSafe.toISOString()}`,
       );
-      return;
+      return false;
     }
 
     if (!row.client_name_db) {
       console.warn(
         `[RAPPEL] cliente sin match en clientdb (inactivo), no se manda. event=${eventId}`,
       );
-      return;
+      return false;
     }
     if (Number(row.contabilidad_facturas_debidas_count) > 0) {
       console.warn(`[RAPPEL] cliente con facturas debidas, no se manda. event=${eventId}`);
-      return;
+      return false;
     }
     if (!row.descripcion_servicio_link) {
       console.warn(`[RAPPEL] servicio sin descripción configurada, no se manda. event=${eventId}`);
-      return;
+      return false;
     }
     const fichas = row.ficha_tecnica_arr || [];
     const hasTechSheet = fichas.length > 0 && fichas.every((f) => !!f);
     if (!hasTechSheet) {
       console.warn(`[RAPPEL] falta ficha técnica de algún cleaner, no se manda. event=${eventId}`);
-      return;
+      return false;
     }
 
     const lang = detectLang(row.idioma, row.city);
@@ -558,7 +561,8 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
         `[RAPPEL] MODO PRUEBA (no toca service_reminders_sent). event=${eventId} ` +
           `service_date=${serviceDate} lang=${lang} sms=${smsEnabled && !!testPhone} email=${emailEnabled && !!testEmail}`,
       );
-      return;
+      // Simulación: no cuenta como envío real (no toca el candado ni cuentas).
+      return false;
     }
 
     const claim = await getPool().query(
@@ -570,7 +574,7 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
     );
     if ((claim.rowCount ?? 0) === 0) {
       console.log(`[RAPPEL] otro proceso ya reclamó este rappel (carrera), se omite. event=${eventId}`);
-      return;
+      return false;
     }
 
     let emailTo: string[] = [];
@@ -627,7 +631,7 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
         `[RAPPEL] todos los envíos fallaron; se libera el slot para reintento del cron. ` +
           `event=${eventId} errors=${errors.join(' | ')}`,
       );
-      return;
+      return false;
     }
 
     await getPool().query(
@@ -648,7 +652,9 @@ export async function sendRappel(eventId: string, effectiveDate?: string | Date)
       `[RAPPEL] Escenario 2 enviado. event=${eventId} service_date=${serviceDate} ` +
         `lang=${lang} sms=${!!quoSentAt} email=${!!emailSentAt}`,
     );
+    return !!(quoSentAt || emailSentAt);
   } catch (err) {
     console.error('[RAPPEL] error inesperado (no bloquea la aceptación):', err);
+    return false;
   }
 }

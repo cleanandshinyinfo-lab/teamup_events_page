@@ -71,18 +71,17 @@ export async function POST(req: NextRequest) {
           kind: reminderKind,
         });
       }
+      // Registrar en la tabla "cuentas" de Glide SOLO si el rappel salió en el acto
+      // (Escenario 2): en ese caso el cron de 9am excluye el servicio por el candado
+      // service_reminders_sent y nunca lo registraría. Si el rappel no se envió
+      // (Escenario 1, aún no toca), el cron lo enviará y registrará a su hora.
       try {
-        await sendRappel(String(teamup_event_id));
+        const rappelSent = await sendRappel(String(teamup_event_id));
+        if (rappelSent) {
+          await registerCuentas(String(teamup_event_id));
+        }
       } catch (rappelError) {
-        console.error('[SERVICIOS_SOLICITAR] error en sendRappel (no bloquea la respuesta):', rappelError);
-      }
-      // Registrar el servicio en la tabla "cuentas" de Glide con su teamup id. En
-      // Escenario 2 (rappel ya enviado al aceptar) el cron de 9am lo excluye y nunca
-      // lo registraría; aquí lo aseguramos. Idempotente (upsert por teamup_event_id).
-      try {
-        await registerCuentas(String(teamup_event_id));
-      } catch (cuentasError) {
-        console.error('[SERVICIOS_SOLICITAR] error en registerCuentas (no bloquea la respuesta):', cuentasError);
+        console.error('[SERVICIOS_SOLICITAR] error en sendRappel/registerCuentas (no bloquea la respuesta):', rappelError);
       }
     }
 
