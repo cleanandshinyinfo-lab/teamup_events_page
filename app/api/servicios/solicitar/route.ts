@@ -4,6 +4,7 @@ import { notifyServiceResponse } from '@/lib/cancelThread';
 import { notifyClientReplacement } from '@/lib/clientNotify';
 import { sendCleanerReminder } from '@/lib/cleanerReminder';
 import { sendRappel } from '@/lib/rappel';
+import { registerCuentas } from '@/lib/registerCuentas';
 import { BOLSA_DISPONIBLE } from '@/lib/flags';
 
 type AssignOutcome = 'success' | 'already_assigned' | 'failed';
@@ -74,6 +75,14 @@ export async function POST(req: NextRequest) {
         await sendRappel(String(teamup_event_id));
       } catch (rappelError) {
         console.error('[SERVICIOS_SOLICITAR] error en sendRappel (no bloquea la respuesta):', rappelError);
+      }
+      // Registrar el servicio en la tabla "cuentas" de Glide con su teamup id. En
+      // Escenario 2 (rappel ya enviado al aceptar) el cron de 9am lo excluye y nunca
+      // lo registraría; aquí lo aseguramos. Idempotente (upsert por teamup_event_id).
+      try {
+        await registerCuentas(String(teamup_event_id));
+      } catch (cuentasError) {
+        console.error('[SERVICIOS_SOLICITAR] error en registerCuentas (no bloquea la respuesta):', cuentasError);
       }
     }
 
