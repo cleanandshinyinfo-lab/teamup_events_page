@@ -1,13 +1,12 @@
 import { getPool } from './db';
 
 // IDs de Slack a etiquetar
-const ALAN = 'U097VJN0WRH';
 const ALEXIS = 'U0614UUFAH4';
 const EUGENIA = 'U0BAVN4D52R';
-// Tags para las aceptaciones (Esc.1/2.1/2.2): entre semana solo Alexis; finde Alan+Eugenia
-// (Eugenia gestiona los fines de semana; sábado y domingo se etiqueta a Eugenia en vez de Alexis).
+// Tags para las aceptaciones (Esc.1/2.1/2.2): entre semana Alexis; fin de semana SOLO Eugenia
+// (Eugenia gestiona los fines de semana). Mismo criterio que proposeTags/Esc.3.
 function teamTags(): string {
-  return isWeekendNow() ? `<@${ALAN}> <@${EUGENIA}>` : `<@${ALEXIS}>`;
+  return isWeekendNow() ? `<@${EUGENIA}>` : `<@${ALEXIS}>`;
 }
 
 interface InfoRow {
