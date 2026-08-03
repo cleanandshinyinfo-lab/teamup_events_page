@@ -21,6 +21,8 @@ interface InfoRow {
   date_changed: boolean;
   /** Días entre la fecha original y la nueva (solo relevante si date_changed). */
   days_diff: number | null;
+  /** Cleaners asignadas AHORA al servicio (ya incluye a la que acaba de aceptar). */
+  assigned_count: number | null;
   // Campos para el mensaje de declinados (§13)
   frequency: string | null;
   duration_hours: number | string | null;
@@ -98,6 +100,8 @@ const PASOS_SIN_CLIENTE =
  *
  *  - Esc.1  : acepta en el horario original                -> hilo en #cancelacion + avisa cliente
  *  - Esc.2.1: acepta, fecha movida 0-1 día en TeamUp       -> hilo en #cancelacion + avisa cliente
+ *  (Esc.1/2.1: si el servicio es de 2+ cleaners y solo canceló una —la otra sigue
+ *   asignada—, NO se avisa al cliente; solo el hilo en Slack y el WhatsApp a la cleaner.)
  *  - Esc.2.2: acepta, fecha movida 2+ días en TeamUp       -> hilo en #cancelacion + NO avisa cliente
  *  - Esc.3  : propone otro horario                         -> hilo en #cancelacion + tags, NO avisa cliente
  *  - Declinado: acepta un servicio declinado (no último minuto) -> #agendados, NO avisa cliente
@@ -135,6 +139,7 @@ export async function notifyServiceResponse(params: {
                 WHEN lmc.original_start IS NULL THEN 0
                 ELSE (rc.start_teamup_local::date - lmc.original_start::date)
               END AS days_diff,
+              cardinality(COALESCE(rc.cleaner_subcalendar_ids, '{}'::text[])) AS assigned_count,
               rc.frequency, rc.duration_hours, rc.required_cleaners,
               ('solo_mujer' = ANY(COALESCE(rc.service_management, '{}'::text[]))) AS solo_mujer
        FROM "Glide".recent_contracts rc
@@ -220,8 +225,21 @@ export async function notifyServiceResponse(params: {
     const esc21 = info.date_changed && dd <= 1;
     const esc22 = info.date_changed && dd >= 2;
 
-    // Solo Esc.1 y Esc.2.1 avisan al cliente.
-    result.notifyClient = esc1 || esc21;
+    // Servicio de equipo (2+ cleaners) donde solo canceló una: además de la que
+    // acaba de aceptar queda OTRA cleaner asignada (la que nunca canceló). En ese
+    // caso al cliente NO se le manda nada — su servicio nunca quedó descubierto.
+    // Si cancelaron las dos, la primera aceptación ve assigned_count=1 y sí avisa.
+    const equipoConOtraAsignada =
+      Number(info.required_cleaners ?? 0) >= 2 && Number(info.assigned_count ?? 0) >= 2;
+
+    // Solo Esc.1 y Esc.2.1 avisan al cliente, y nunca si la otra cleaner del equipo sigue asignada.
+    result.notifyClient = (esc1 || esc21) && !equipoConOtraAsignada;
+
+    // Nota para el hilo de Slack cuando se suprime el aviso por ser servicio de equipo.
+    const notaEquipo =
+      `❗️👉 No se mandó la ficha técnica de la cleaner por correo al cliente ni se le mandó un Quo avisándole.\n` +
+      `> Servicio de ${info.required_cleaners} cleaners: solo una canceló y la otra sigue asignada, ` +
+      `así que no se le notifica nada al cliente.`;
 
     if (esc1) {
       const text =
@@ -229,7 +247,7 @@ export async function notifyServiceResponse(params: {
         `La cleaner *${name}* tomó el servicio de *${info.client_name || '—'}* cancelado de último minuto ✅\n\n` +
         `*La fecha y hora del servicio según TeamUp es:* ${info.fecha_es || '—'}\n\n` +
         `---\n\n` +
-        PASOS_CON_CLIENTE +
+        (equipoConOtraAsignada ? `${PASOS_SIN_CLIENTE}\n\n${notaEquipo}` : PASOS_CON_CLIENTE) +
         `\n\n${teamTags()}`;
       if (token && cancelacion) {
         await postSlack({ token, channel: cancelacion, text, threadTs: info.slack_message_id });
@@ -257,7 +275,10 @@ export async function notifyServiceResponse(params: {
         `> No es necesario ya que la fecha del servicio es de más de 1 día a futuro y el rappel se mandará ` +
         `automáticamente un día antes del servicio.\n\n${teamTags()}`;
     } else {
-      text = `${encabezado}\n\n${cuerpoComun}\n\n---\n\n${PASOS_CON_CLIENTE}\n\n${teamTags()}`;
+      text =
+        `${encabezado}\n\n${cuerpoComun}\n\n---\n\n` +
+        (equipoConOtraAsignada ? `${PASOS_SIN_CLIENTE}\n\n${notaEquipo}` : PASOS_CON_CLIENTE) +
+        `\n\n${teamTags()}`;
     }
     if (token && cancelacion) {
       await postSlack({ token, channel: cancelacion, text, threadTs: info.slack_message_id });

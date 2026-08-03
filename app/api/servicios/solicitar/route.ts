@@ -59,7 +59,8 @@ export async function POST(req: NextRequest) {
         cleanerName: cleaner.cleaner_name || 'Una cleaner',
       });
       // Aviso a la clienta por QUO + correo (va un cleaner de reemplazo), respetando sus
-      // canales activos. Solo Esc.1 y Esc.2.1 (NO Esc.2.2 ni declinados).
+      // canales activos. Solo Esc.1 y Esc.2.1 (NO Esc.2.2 ni declinados, ni servicios de
+      // 2 cleaners donde solo canceló una y la otra sigue asignada).
       if (notifyClient) {
         await notifyClientReplacement(String(teamup_event_id));
       }
