@@ -1,4 +1,5 @@
 import { getPool } from './db';
+import type { RappelOutcome } from './rappel';
 
 // IDs de Slack a etiquetar
 const ALEXIS = 'U0614UUFAH4';
@@ -82,16 +83,53 @@ async function postSlack(params: {
   if (!data.ok) console.error('[SLACK] chat.postMessage error:', res.status, data.error || 'unknown');
 }
 
-// Bloque "Pasos" común a los escenarios 1 y 2.1 (sí se avisó al cliente).
-const PASOS_CON_CLIENTE =
-  '*Pasos realizados por la automatización:* Se ajustó el TeamUp, se mandó la ficha técnica de la cleaner ' +
-  'por correo al cliente y se le mandó un Quo avisándole, se mandó un recordatorio a la cleaner\n\n' +
-  '*Pasos pendientes:* Ajustar el CRM (Glide)';
+// Bloque "Pasos" dinámico: refleja lo que la automatización HIZO en esta aceptación
+// (rappel/cuentas corren antes de postear a Slack, así que aquí ya se sabe el resultado).
+function pasosBlock(opts: {
+  conCliente: boolean;
+  rappel?: RappelOutcome;
+  cuentasOk?: boolean;
+}): string {
+  const realizados: string[] = ['Se ajustó el TeamUp'];
+  if (opts.conCliente) {
+    realizados.push(
+      'se mandó la ficha técnica de la cleaner por correo al cliente y se le mandó un Quo avisándole',
+    );
+  }
+  realizados.push('se mandó un recordatorio a la cleaner');
 
-// Bloque "Pasos" del escenario 2.2 (no se avisó al cliente).
-const PASOS_SIN_CLIENTE =
-  '*Pasos realizados por la automatización:* Se ajustó el TeamUp, se mandó un recordatorio a la cleaner\n\n' +
-  '*Pasos pendientes:* Ajustar el CRM (Glide)';
+  const pendientes: string[] = [];
+  switch (opts.rappel) {
+    case 'sent':
+      realizados.push('se mandó el rappel del servicio al cliente');
+      if (opts.cuentasOk) realizados.push('se registró el servicio en cuentas (Glide)');
+      else pendientes.push('Registrar el servicio en cuentas (Glide) — el registro automático falló');
+      break;
+    case 'already_sent':
+      realizados.push('el rappel NO se reenvió porque ya se había enviado antes de la cancelación');
+      if (opts.cuentasOk) {
+        realizados.push('se actualizó la fila de cuentas (Glide) con la/las cleaners actuales y sus salarios');
+      } else {
+        pendientes.push('Actualizar la fila de cuentas (Glide) con la cleaner nueva — la actualización automática falló');
+      }
+      break;
+    case 'not_due':
+      realizados.push(
+        'el rappel y el registro en cuentas (Glide) los hará el cron automáticamente a las 9 AM del día anterior al servicio',
+      );
+      break;
+    default: // 'skipped' | 'error' | undefined
+      pendientes.push(
+        'Revisar el rappel y la fila de cuentas (Glide) manualmente — el envío automático no aplicó o falló (cliente inactivo/facturas/sin descripción/sin ficha, o error de envío)',
+      );
+      break;
+  }
+
+  return (
+    `*Pasos realizados por la automatización:* ${realizados.join(', ')}\n\n` +
+    `*Pasos pendientes:* ${pendientes.length ? pendientes.join('; ') : 'Ninguno ✅'}`
+  );
+}
 
 /**
  * Notifica a Slack la respuesta de una cleaner a un servicio de la bolsa y decide qué
@@ -113,6 +151,11 @@ export async function notifyServiceResponse(params: {
   action: 'accept' | 'propose';
   cleanerName: string;
   proposedText?: string;
+  /** Resultado real del sendRappel de esta aceptación (solo accept): el bloque
+   *  "Pasos" del hilo lo reporta tal cual en vez de un texto fijo. */
+  rappelOutcome?: RappelOutcome;
+  /** TRUE si registerCuentas aplicó el alta/actualización en Glide. */
+  cuentasOk?: boolean;
 }): Promise<ServiceResponseResult> {
   const token = process.env.SLACK_BOT_TOKEN;
   const cancelacion = process.env.SLACK_CANCELACION_CHANNEL_ID;
@@ -241,13 +284,20 @@ export async function notifyServiceResponse(params: {
       `> Servicio de ${info.required_cleaners} cleaners: solo una canceló y la otra sigue asignada, ` +
       `así que no se le notifica nada al cliente.`;
 
+    // Pasos según lo que realmente hizo esta aceptación (rappel/cuentas ya corrieron).
+    const pasos = pasosBlock({
+      conCliente: result.notifyClient,
+      rappel: params.rappelOutcome,
+      cuentasOk: params.cuentasOk,
+    });
+
     if (esc1) {
       const text =
         `*ESCENARIO #1 → Cleaner aceptó el servicio en el horario original (${info.fecha_es || '—'})*\n\n` +
         `La cleaner *${name}* tomó el servicio de *${info.client_name || '—'}* cancelado de último minuto ✅\n\n` +
         `*La fecha y hora del servicio según TeamUp es:* ${info.fecha_es || '—'}\n\n` +
         `---\n\n` +
-        (equipoConOtraAsignada ? `${PASOS_SIN_CLIENTE}\n\n${notaEquipo}` : PASOS_CON_CLIENTE) +
+        (equipoConOtraAsignada ? `${pasos}\n\n${notaEquipo}` : pasos) +
         `\n\n${teamTags()}`;
       if (token && cancelacion) {
         await postSlack({ token, channel: cancelacion, text, threadTs: info.slack_message_id });
@@ -270,14 +320,14 @@ export async function notifyServiceResponse(params: {
     let text: string;
     if (esc22) {
       text =
-        `${encabezado}\n\n${cuerpoComun}\n\n---\n\n${PASOS_SIN_CLIENTE}\n\n` +
+        `${encabezado}\n\n${cuerpoComun}\n\n---\n\n${pasos}\n\n` +
         `❗️👉 No se mandó la ficha técnica de la cleaner por correo al cliente ni se le mandó un Quo avisándole.\n` +
         `> No es necesario ya que la fecha del servicio es de más de 1 día a futuro y el rappel se mandará ` +
         `automáticamente un día antes del servicio.\n\n${teamTags()}`;
     } else {
       text =
         `${encabezado}\n\n${cuerpoComun}\n\n---\n\n` +
-        (equipoConOtraAsignada ? `${PASOS_SIN_CLIENTE}\n\n${notaEquipo}` : PASOS_CON_CLIENTE) +
+        (equipoConOtraAsignada ? `${pasos}\n\n${notaEquipo}` : pasos) +
         `\n\n${teamTags()}`;
     }
     if (token && cancelacion) {

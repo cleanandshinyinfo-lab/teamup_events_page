@@ -3,7 +3,7 @@ import { getBrowseCleanerByToken, requestServiceForCleaner } from '@/lib/db';
 import { notifyServiceResponse } from '@/lib/cancelThread';
 import { notifyClientReplacement } from '@/lib/clientNotify';
 import { sendCleanerReminder } from '@/lib/cleanerReminder';
-import { sendRappel } from '@/lib/rappel';
+import { sendRappel, type RappelOutcome } from '@/lib/rappel';
 import { registerCuentas } from '@/lib/registerCuentas';
 import { BOLSA_DISPONIBLE } from '@/lib/flags';
 
@@ -51,12 +51,32 @@ export async function POST(req: NextRequest) {
     const { outcome, message } = classifyAssignResult(row);
 
     if (outcome === 'success') {
+      // Rappel + cuentas ANTES del aviso a Slack, para que el bloque "Pasos" del hilo
+      // reporte lo que realmente pasó (y no un texto fijo).
+      //  - 'sent' (rappel al vuelo): el cron de 9am excluirá este servicio por el candado
+      //    service_reminders_sent, así que hay que registrarlo en cuentas aquí.
+      //  - 'already_sent' (el rappel salió antes, p. ej. con la cleaner que canceló): la
+      //    fila de cuentas ya existe con la cleaner vieja; el upsert por teamup_event_id
+      //    la actualiza con la/las cleaners actuales y sus salarios.
+      //  - 'not_due': el cron enviará y registrará a su hora; aquí no se toca cuentas.
+      let rappelOutcome: RappelOutcome = 'error';
+      let cuentasOk = false;
+      try {
+        rappelOutcome = await sendRappel(String(teamup_event_id));
+        if (rappelOutcome === 'sent' || rappelOutcome === 'already_sent') {
+          cuentasOk = await registerCuentas(String(teamup_event_id));
+        }
+      } catch (rappelError) {
+        console.error('[SERVICIOS_SOLICITAR] error en sendRappel/registerCuentas (no bloquea la respuesta):', rappelError);
+      }
       // Aviso a Slack (rutea según escenario: Esc.1 / 2.1 / 2.2 / declinado) y nos dice
       // qué comunicaciones tocan: avisar al cliente y/o recordatorio de WhatsApp a la cleaner.
       const { notifyClient, sendReminder, reminderKind } = await notifyServiceResponse({
         eventId: String(teamup_event_id),
         action: 'accept',
         cleanerName: cleaner.cleaner_name || 'Una cleaner',
+        rappelOutcome,
+        cuentasOk,
       });
       // Aviso a la clienta por QUO + correo (va un cleaner de reemplazo), respetando sus
       // canales activos. Solo Esc.1 y Esc.2.1 (NO Esc.2.2 ni declinados, ni servicios de
@@ -71,18 +91,6 @@ export async function POST(req: NextRequest) {
           subcalendarId: cleaner.subcalendar_id,
           kind: reminderKind,
         });
-      }
-      // Registrar en la tabla "cuentas" de Glide SOLO si el rappel salió en el acto
-      // (Escenario 2): en ese caso el cron de 9am excluye el servicio por el candado
-      // service_reminders_sent y nunca lo registraría. Si el rappel no se envió
-      // (Escenario 1, aún no toca), el cron lo enviará y registrará a su hora.
-      try {
-        const rappelSent = await sendRappel(String(teamup_event_id));
-        if (rappelSent) {
-          await registerCuentas(String(teamup_event_id));
-        }
-      } catch (rappelError) {
-        console.error('[SERVICIOS_SOLICITAR] error en sendRappel/registerCuentas (no bloquea la respuesta):', rappelError);
       }
     }
 

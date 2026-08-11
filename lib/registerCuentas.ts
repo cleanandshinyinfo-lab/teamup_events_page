@@ -4,14 +4,15 @@
 // al aceptar (Escenario 2), el cron de las 9am excluye ese servicio por el candado
 // service_reminders_sent y nunca lo registraría en cuentas.
 //
-// Fire-and-forget: cualquier fallo se loguea pero NO bloquea la aceptación. Si no
-// están configuradas las envs (URL/secret) hace no-op silencioso.
-export async function registerCuentas(eventId: string): Promise<void> {
+// Cualquier fallo se loguea pero NO bloquea la aceptación. Si no están configuradas
+// las envs (URL/secret) hace no-op silencioso. Devuelve true solo si el registro/
+// actualización realmente se aplicó, para que el mensaje de Slack reporte la verdad.
+export async function registerCuentas(eventId: string): Promise<boolean> {
   const baseUrl = process.env.SERVICE_REMINDERS_URL;
   const secret = process.env.SERVICE_REMINDERS_SECRET;
   if (!baseUrl || !secret) {
     console.warn('[REGISTER_CUENTAS] SERVICE_REMINDERS_URL/SECRET no configuradas, no-op.');
-    return;
+    return false;
   }
   try {
     const url =
@@ -20,8 +21,11 @@ export async function registerCuentas(eventId: string): Promise<void> {
     const res = await fetch(url, { method: 'POST' });
     if (!res.ok) {
       console.error('[REGISTER_CUENTAS] HTTP error:', res.status, await res.text().catch(() => ''));
+      return false;
     }
+    return true;
   } catch (err) {
     console.error('[REGISTER_CUENTAS] error (no bloquea la aceptación):', err);
+    return false;
   }
 }
