@@ -64,12 +64,65 @@ export async function getEventById(eventId: string): Promise<Event | null> {
     );
 
     if (result.rows.length === 0) {
-      return null;
+      return getEventFromMirrors(eventId);
     }
 
     return result.rows[0] as Event;
   } catch (error) {
     console.error('Database error:', error);
+    return null;
+  }
+}
+
+/**
+ * Fallback: eventos que no están en recent_contracts (en verificación o
+ * cancelados) se resuelven desde las tablas espejo del mirror + clientdb.
+ * Usa public_notes (solo las notas visibles del evento en TeamUp); las notas
+ * internas de ops (columna notes) nunca se exponen aquí.
+ */
+async function getEventFromMirrors(eventId: string): Promise<Event | null> {
+  // Mismo normalizador de nombre que usan las vistas: quita sufijos de ciudad
+  // "(M)" y de emojis "(🧽🖲️)" pero conserva marcadores como "(2)".
+  const nameKey = (col: string) =>
+    `lower(btrim(regexp_replace(regexp_replace(${col}, '\\s*\\(([A-Z]{1,2}|[^[:alnum:] ]+)\\)', '', 'g'), '\\s+', ' ', 'g')))`;
+  try {
+    const result = await getPool().query(
+      `SELECT
+        m.teamup_event_id,
+        m.title AS client_name,
+        cd.direccion AS address,
+        m.city,
+        m.start_dt,
+        m.end_dt AS end_date,
+        to_char(m.start_dt AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD HH24:MI:SS') AS start_teamup_local,
+        to_char(m.end_dt AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD HH24:MI:SS') AS end_teamup_local,
+        "Glide".format_spanish_date((m.start_dt AT TIME ZONE 'America/Toronto')::timestamptz) AS start_date_teamup_es,
+        COALESCE(cd.horas::text, round((extract(epoch from (m.end_dt - m.start_dt))/3600)::numeric, 2)::text) AS duration_hours,
+        cd.tipo_de_limpieza_esp_if AS cleaning_type,
+        (SELECT replace(t.t, '_', ' ') FROM jsonb_array_elements_text(m.tags) t(t)
+          WHERE t.t ~ '^cada_[0-9]+_semanas$' OR t.t IN ('semanal','ocasional') LIMIT 1) AS frequency,
+        NULL::text AS requires_vacuum,
+        (SELECT t.t FROM jsonb_array_elements_text(m.tags) t(t)
+          WHERE t.t IN ('antes_y_despues','sin_fotos','video_antes_y_despue_s') LIMIT 1) AS photos_required,
+        m.public_notes AS description_html,
+        NULL::text AS description,
+        cd.notasmascotas AS notas_mascotas
+      FROM (
+        SELECT teamup_event_id, city, title, start_dt, end_dt, tags, public_notes
+          FROM "Glide".teamup_verificacion_events WHERE teamup_event_id = $1
+        UNION ALL
+        SELECT teamup_event_id, city, title, start_dt, end_dt, tags, public_notes
+          FROM "Glide".teamup_cancelado_events WHERE teamup_event_id = $1
+      ) m
+      LEFT JOIN "Glide".clientdb cd
+        ON ${nameKey('cd.nombredelcliente')} = ${nameKey('m.title')}
+      LIMIT 1`,
+      [eventId]
+    );
+    if (result.rows.length === 0) return null;
+    return result.rows[0] as Event;
+  } catch (error) {
+    console.error('DB getEventFromMirrors error:', error);
     return null;
   }
 }
