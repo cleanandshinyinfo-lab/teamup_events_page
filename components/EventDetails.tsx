@@ -35,10 +35,19 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
   // eso puede ser de hace meses. Aquí se lee el dato vigente, y solo se muestra
   // si no está ya dentro de las instrucciones, para no repetirlo.
   const acceso = {
-    entrar: valueIfMissingFrom(event.description_html, event.instrucciones_entrar),
-    llegar: valueIfMissingFrom(event.description_html, event.instrucciones_llegar),
-    parqueadero: valueIfMissingFrom(event.description_html, event.hay_parqueadero),
-    apartamento: valueIfMissingFrom(event.description_html, event.num_apartamento),
+    entrar: valueIfMissingFrom(event.description_html, event.instrucciones_entrar, [
+      'Instrucciones para entrar a la propiedad',
+    ]),
+    llegar: valueIfMissingFrom(event.description_html, event.instrucciones_llegar, [
+      'Instrucciones para encontrar la propiedad',
+      'Instrucciones para llegar',
+    ]),
+    parqueadero: valueIfMissingFrom(event.description_html, event.hay_parqueadero, [
+      'Instrucciones de parqueadero',
+    ]),
+    apartamento: valueIfMissingFrom(event.description_html, event.num_apartamento, [
+      '# de apartamento',
+    ]),
   };
   const tieneAcceso = Object.values(acceso).some(Boolean);
   const [isUnavailable, setIsUnavailable] = useState(

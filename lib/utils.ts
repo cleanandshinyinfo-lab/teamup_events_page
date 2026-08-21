@@ -152,16 +152,54 @@ export function htmlIncludesText(html: string | null, text: string | null): bool
   if (!text || !text.trim()) return false;
   if (!html) return false;
   const normalize = (s: string) =>
-    s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
-  return normalize(html).includes(normalize(text));
+    s.replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+  const needle = normalize(text);
+  const haystack = normalize(html);
+  if (!needle) return false;
+
+  // Un valor corto cae dentro de cualquier texto por casualidad: "sí" está
+  // dentro de "así", y el apartamento "1" dentro de "1011". Ahí se exige que
+  // sea una palabra suelta; el 40% de los parqueaderos son un "sí" pelado.
+  if (needle.length < 25) {
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}([^\\p{L}\\p{N}]|$)`, 'u').test(haystack);
+  }
+  return haystack.includes(needle);
 }
 
 /**
  * Devuelve el valor solo si NO está ya en las instrucciones del evento.
  * Con eso, cada dato de acceso se muestra una vez: o en su recuadro, o dentro
  * de las instrucciones, nunca en los dos sitios.
+ *
+ * `labels` son los encabezados con que el creador de servicios pinta ese mismo
+ * dato en las notas ("Instrucciones de parqueadero: ..."). Solo desempatan
+ * cuando el valor es corto: un "sí" suelto junto a un bullet que ya dice
+ * "Instrucciones de parqueadero: Sí, en la entrada" no aporta nada.
+ *
+ * Con un texto largo el encabezado NO basta para callarlo: si la ficha dice
+ * algo distinto de lo que quedó escrito en el evento, lo de la ficha es lo
+ * vigente — suele ser el código de la puerta que el cliente dio después — y el
+ * cleaner tiene que verlo.
  */
-export function valueIfMissingFrom(html: string | null, value: string | null): string | null {
-  if (!value || !value.trim()) return null;
-  return htmlIncludesText(html, value) ? null : value.trim();
+export function valueIfMissingFrom(
+  html: string | null,
+  value: string | null,
+  labels: string[] = []
+): string | null {
+  const valor = value ? value.trim() : '';
+  if (!valor) return null;
+  if (htmlIncludesText(html, valor)) return null;
+  const esCorto = valor.replace(/\s+/g, ' ').length < 25;
+  if (esCorto && labels.some((label) => htmlIncludesText(html, label))) return null;
+  return valor;
 }
