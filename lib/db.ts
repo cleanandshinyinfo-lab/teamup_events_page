@@ -106,7 +106,11 @@ async function getEventFromMirrors(eventId: string): Promise<Event | null> {
           WHERE t.t IN ('antes_y_despues','sin_fotos','video_antes_y_despue_s') LIMIT 1) AS photos_required,
         m.public_notes AS description_html,
         NULL::text AS description,
-        cd.notasmascotas AS notas_mascotas
+        cd.notasmascotas AS notas_mascotas,
+        cd.instruccionesparaentraralapropiedad          AS instrucciones_entrar,
+        cd.instruccionesparallegaroencontrarlapropiedad AS instrucciones_llegar,
+        cd.hayparqueadero                               AS hay_parqueadero,
+        cd.deapartamento                                AS num_apartamento
       FROM (
         SELECT teamup_event_id, city, title, start_dt, end_dt, tags, public_notes
           FROM "Glide".teamup_verificacion_events WHERE teamup_event_id = $1
