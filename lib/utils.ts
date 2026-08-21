@@ -140,3 +140,28 @@ export function formatPhotosRequired(value: string | null): string {
   };
   return photoMap[value.toLowerCase()] || value;
 }
+
+/**
+ * ¿El texto ya aparece dentro de este HTML?
+ *
+ * Compara ignorando etiquetas, espacios y mayúsculas: si la operadora pegó el
+ * dato a mano en las instrucciones con otro formato, cuenta como presente.
+ * Sirve para no repetir arriba lo que el cleaner ya va a leer más abajo.
+ */
+export function htmlIncludesText(html: string | null, text: string | null): boolean {
+  if (!text || !text.trim()) return false;
+  if (!html) return false;
+  const normalize = (s: string) =>
+    s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  return normalize(html).includes(normalize(text));
+}
+
+/**
+ * Devuelve el valor solo si NO está ya en las instrucciones del evento.
+ * Con eso, cada dato de acceso se muestra una vez: o en su recuadro, o dentro
+ * de las instrucciones, nunca en los dos sitios.
+ */
+export function valueIfMissingFrom(html: string | null, value: string | null): string | null {
+  if (!value || !value.trim()) return null;
+  return htmlIncludesText(html, value) ? null : value.trim();
+}

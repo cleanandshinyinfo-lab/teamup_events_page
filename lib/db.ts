@@ -48,7 +48,11 @@ export async function getEventById(eventId: string): Promise<Event | null> {
         rc.photos_required,
         rc.description_html,
         rc.description,
-        cd.notasmascotas AS notas_mascotas
+        cd.notasmascotas AS notas_mascotas,
+        cd.instruccionesparaentraralapropiedad          AS instrucciones_entrar,
+        cd.instruccionesparallegaroencontrarlapropiedad AS instrucciones_llegar,
+        cd.hayparqueadero                               AS hay_parqueadero,
+        cd.deapartamento                                AS num_apartamento
       FROM "Glide"."recent_contracts" rc
       LEFT JOIN "Glide"."v_contracts_assigned_active" v
         ON rc.teamup_event_id = v.teamup_event_id

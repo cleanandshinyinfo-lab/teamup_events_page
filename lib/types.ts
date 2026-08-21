@@ -50,4 +50,16 @@ export interface Event {
   description: string | null;
   /** Pet notes from Glide (column u8M9e) */
   notas_mascotas: string | null;
+  // Datos de acceso leídos de la ficha del cliente (Glide.clientdb), no del
+  // evento. El evento es una foto del día en que se creó: si el cliente
+  // respondió después, o cambió el código de la puerta, solo la ficha está al
+  // día. Se muestran únicamente si no aparecen ya en description_html.
+  /** Cómo entrar a la propiedad (llaves, códigos, timbre) */
+  instrucciones_entrar: string | null;
+  /** Cómo llegar o encontrar la propiedad */
+  instrucciones_llegar: string | null;
+  /** Indicaciones de parqueadero */
+  hay_parqueadero: string | null;
+  /** Número de apartamento / unidad */
+  num_apartamento: string | null;
 }

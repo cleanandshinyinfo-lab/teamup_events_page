@@ -11,6 +11,7 @@ import {
   getCityBadge,
   formatVacuumRequired,
   formatPhotosRequired,
+  valueIfMissingFrom,
 } from '@/lib/utils';
 import InfoBox from './InfoBox';
 import InstructionsSection from './InstructionsSection';
@@ -28,6 +29,18 @@ interface EventDetailsProps {
 export default function EventDetails({ event, token, initialInvitation }: EventDetailsProps) {
   const cityName = getCityDisplayName(event.city);
   const cityBadge = getCityBadge(event.city);
+
+  // Datos de acceso desde la ficha del cliente. El evento guarda lo que el
+  // cliente había respondido el día en que se creó — en un servicio quincenal
+  // eso puede ser de hace meses. Aquí se lee el dato vigente, y solo se muestra
+  // si no está ya dentro de las instrucciones, para no repetirlo.
+  const acceso = {
+    entrar: valueIfMissingFrom(event.description_html, event.instrucciones_entrar),
+    llegar: valueIfMissingFrom(event.description_html, event.instrucciones_llegar),
+    parqueadero: valueIfMissingFrom(event.description_html, event.hay_parqueadero),
+    apartamento: valueIfMissingFrom(event.description_html, event.num_apartamento),
+  };
+  const tieneAcceso = Object.values(acceso).some(Boolean);
   const [isUnavailable, setIsUnavailable] = useState(
     initialInvitation?.status === 'pending' && initialInvitation.serviceTaken
   );
@@ -153,6 +166,21 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
                 />
               )}
             </div>
+
+            {/* Acceso a la propiedad — lo que el cleaner necesita al llegar */}
+            {tieneAcceso && (
+              <div className="border-t border-gray-200 pt-6 mb-6">
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4">
+                  Acceso a la propiedad
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoBox icon="🔑" label="Como entrar" value={acceso.entrar} />
+                  <InfoBox icon="🧭" label="Como llegar" value={acceso.llegar} />
+                  <InfoBox icon="🅿️" label="Parqueadero" value={acceso.parqueadero} />
+                  <InfoBox icon="🏢" label="Apartamento / unidad" value={acceso.apartamento} />
+                </div>
+              </div>
+            )}
 
             {/* Instructions section */}
             <div id="instrucciones" className="border-t border-gray-200 pt-6">
