@@ -152,30 +152,32 @@ export interface PendingChangeRequest {
 export interface ResolvedChangeRequest {
   id: string;
   status: Exclude<ScheduleChangeStatus, 'pendiente' | 'aceptando'>;
+  teamup_event_id: string;
   client_name: string | null;
+  current_start_local: string | null;
+  current_datetime_text: string | null;
+  requested_start_local: string | null;
   requested_datetime_text: string | null;
+  /** Solo cuando status === 'propuesta_alternativa'. */
+  proposed_start_local?: string;
+  proposed_datetime_text?: string | null;
   decided_at: string | null;
   decision_note: string | null;
   read_only: true;
 }
 
-export interface UpcomingService {
-  teamup_event_id: string;
-  client_name: string | null;
-  address: string | null;
-  start_local: string;
-  end_local: string | null;
-  datetime_text: string | null;
-  cleaning_type: string | null;
-  has_open_change_request: boolean;
-}
-
+/**
+ * La vista del cleaner es SOLO de solicitudes de cambio de horario (pedido
+ * del usuario 2026-08-24): `upcoming_services` salió del contrato de
+ * GET /schedule-change/cleaner. Ambas listas ya vienen filtradas por el
+ * backend: una solicitud desaparece cuando todas sus horas de servicio
+ * (actual, solicitada y propuesta) ya pasaron.
+ */
 export interface CleanerScheduleData {
   ok: true;
   cleaner: CleanerInfo;
   pending_requests: PendingChangeRequest[];
   resolved_requests: ResolvedChangeRequest[];
-  upcoming_services: UpcomingService[];
 }
 
 export interface AcceptResult {

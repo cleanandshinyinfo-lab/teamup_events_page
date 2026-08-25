@@ -180,8 +180,16 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
             {label.text}
           </span>
         </div>
+        {request.current_datetime_text && (
+          <p className="mt-2 text-sm text-gray-600">🗓 Horario actual: {request.current_datetime_text}</p>
+        )}
         {request.requested_datetime_text && (
-          <p className="mt-2 text-sm text-gray-600">📅 Solicitó: {request.requested_datetime_text}</p>
+          <p className="mt-1 text-sm text-gray-600">📅 Solicitó: {request.requested_datetime_text}</p>
+        )}
+        {request.status === 'propuesta_alternativa' && (request.proposed_datetime_text || request.proposed_start_local) && (
+          <p className="mt-1 text-sm text-blue-700 font-medium">
+            🕐 Propusiste: {request.proposed_datetime_text || request.proposed_start_local}
+          </p>
         )}
         {request.decision_note && (
           <p className="mt-1 text-sm text-gray-600 italic">&quot;{request.decision_note}&quot;</p>

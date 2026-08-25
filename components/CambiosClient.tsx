@@ -5,10 +5,8 @@ import type {
   CleanerScheduleData,
   PendingChangeRequest,
   ResolvedChangeRequest,
-  UpcomingService,
 } from '@/lib/scheduleChangeTypes';
 import ChangeRequestCard from './ChangeRequestCard';
-import UpcomingServicesList from './UpcomingServicesList';
 
 interface CambiosClientProps {
   token: string;
@@ -18,7 +16,6 @@ interface CambiosClientProps {
 export default function CambiosClient({ token, initialData }: CambiosClientProps) {
   const [pending, setPending] = useState<PendingChangeRequest[]>(initialData.pending_requests);
   const [resolved, setResolved] = useState<ResolvedChangeRequest[]>(initialData.resolved_requests);
-  const [upcoming, setUpcoming] = useState<UpcomingService[]>(initialData.upcoming_services);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState('');
 
@@ -48,7 +45,6 @@ export default function CambiosClient({ token, initialData }: CambiosClientProps
       }
       setPending(data.pending_requests);
       setResolved(data.resolved_requests);
-      setUpcoming(data.upcoming_services);
     } catch {
       setRefreshError('Error de conexión al actualizar.');
     } finally {
@@ -97,11 +93,6 @@ export default function CambiosClient({ token, initialData }: CambiosClientProps
             ))}
           </div>
         )}
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Mis próximos servicios</h2>
-        <UpcomingServicesList services={upcoming} />
       </section>
     </div>
   );
