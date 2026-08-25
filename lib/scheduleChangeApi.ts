@@ -32,7 +32,12 @@ const DEFAULT_TIMEOUT_MS = 18000;
 const MUTATION_TIMEOUT_MS = 55000;
 
 function baseUrl(): string {
-  return String(process.env.SCHEDULE_CHANGE_API_URL || DEFAULT_URL).replace(/\/+$/, '');
+  // Los paths de este cliente ya empiezan con /schedule-change, así que la
+  // base debe ser solo el host; si el env viene con el prefijo incluido
+  // (p. ej. https://host/schedule-change), se recorta para no duplicarlo.
+  return String(process.env.SCHEDULE_CHANGE_API_URL || DEFAULT_URL)
+    .replace(/\/+$/, '')
+    .replace(/\/schedule-change$/, '');
 }
 
 function secret(): string | undefined {
