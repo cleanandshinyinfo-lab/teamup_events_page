@@ -1,7 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { isAmbiguousMutationError, type AvailabilityCheckResult, type PendingChangeRequest } from '@/lib/scheduleChangeTypes';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  isAmbiguousMutationError,
+  type AvailableSlot,
+  type AvailableSlotsResult,
+  type PendingChangeRequest,
+} from '@/lib/scheduleChangeTypes';
 
 interface ProposeTimeModalProps {
   token: string;
@@ -11,102 +16,76 @@ interface ProposeTimeModalProps {
   onSubmitted: () => void;
 }
 
-const DEBOUNCE_MS = 400;
-/** Duración de respaldo si no se puede calcular la del servicio (minutos). */
-const FALLBACK_DURATION_MIN = 180;
 const MAX_DAYS_AHEAD = 120; // §3.7 del contrato
-
-function parseLocalAsUtcForMath(s: string): Date {
-  // Truco de aritmética: tratamos el wall-clock como si fuera UTC solo para
-  // poder sumar minutos sin que el reloj del navegador (con su propia zona)
-  // lo corra. Nunca se muestra este valor al usuario, solo se usa para
-  // construir el end_local por defecto que espera el backend (mismo patrón
-  // que ya usa app/api/servicios/propose-time/route.ts en este repo).
-  return new Date(`${s.replace(' ', 'T').slice(0, 19)}Z`);
-}
-
-function durationMinutes(startLocal: string, endLocal: string | null): number {
-  if (!endLocal) return FALLBACK_DURATION_MIN;
-  const diff =
-    (parseLocalAsUtcForMath(endLocal).getTime() - parseLocalAsUtcForMath(startLocal).getTime()) / 60000;
-  return diff > 0 ? diff : FALLBACK_DURATION_MIN;
-}
-
-function addMinutesLocal(dateStr: string, timeStr: string, minutes: number): string {
-  const base = new Date(`${dateStr}T${timeStr}:00Z`);
-  base.setUTCMinutes(base.getUTCMinutes() + minutes);
-  return base.toISOString().slice(0, 19); // "YYYY-MM-DDTHH:mm:ss"
-}
 
 function todayLocalISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** "2026-09-03T13:30:00" -> "13:30" (wall-clock del backend, sin tz del navegador). */
+function slotTimeLabel(startLocal: string): string {
+  return startLocal.slice(11, 16);
+}
+
 export default function ProposeTimeModal({ token, request, onClose, onSubmitted }: ProposeTimeModalProps) {
   const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
   const [note, setNote] = useState('');
-  const [checking, setChecking] = useState(false);
-  const [checkError, setCheckError] = useState('');
-  const [conflict, setConflict] = useState<AvailabilityCheckResult | null>(null);
+  const [slotsResult, setSlotsResult] = useState<AvailableSlotsResult | null>(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  const svcDuration = durationMinutes(request.current_start_local, request.current_end_local);
-
-  // Chequeo de disponibilidad en vivo (US-07) con debounce cada vez que
-  // cambia fecha u hora. Re-validado igual en el servidor al enviar (caso
-  // borde 7 del PM: nunca confiar solo en este chequeo del cliente).
-  useEffect(() => {
-    if (!date || !time) {
-      setConflict(null);
-      setCheckError('');
-      return;
-    }
-    setChecking(true);
-    setCheckError('');
-    const startLocal = `${date}T${time}:00`;
-    const endLocal = addMinutesLocal(date, time, svcDuration);
-    const handle = setTimeout(async () => {
+  // Trae del backend SOLO los horarios sin solapamiento para el día elegido
+  // (con el buffer de traslado 30/60 min ya aplicado). La UI nunca ofrece un
+  // horario que chocaría; el envío se re-valida igual server-side (§3.6).
+  const loadSlots = useCallback(
+    async (forDate: string) => {
+      setSlotsLoading(true);
+      setSlotsError('');
+      setSlotsResult(null);
+      setSelectedSlot(null);
       try {
-        const res = await fetch('/api/cambios/check', {
+        const res = await fetch('/api/cambios/slots', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            teamup_event_id: request.teamup_event_id,
-            start_local: startLocal,
-            end_local: endLocal,
-          }),
+          body: JSON.stringify({ token, id: request.id, date: forDate }),
         });
         const data = await res.json();
         if (!data.ok) {
-          setConflict(null);
-          // A5 (code review): el chequeo en vivo es el endpoint con el límite
-          // más estricto (strictLimiter, backend) — con el debounce de 400ms
-          // es el más propenso a pegar contra RATE_LIMITED si el cleaner
-          // cambia fecha/hora varias veces seguidas.
-          setCheckError(
+          setSlotsError(
             data.error_code === 'RATE_LIMITED'
-              ? 'Demasiados intentos. Espera un momento antes de seguir probando horarios.'
-              : data.message || 'No pudimos verificar tu disponibilidad para ese horario.',
+              ? 'Demasiados intentos. Espera un momento antes de seguir probando fechas.'
+              : data.error_code === 'AVAILABILITY_CHECK_UNAVAILABLE'
+                ? 'No pudimos consultar tu calendario ahora mismo. Intenta de nuevo en un momento.'
+                : data.message || 'No pudimos cargar tus horarios disponibles.',
           );
         } else {
-          setConflict(data as AvailabilityCheckResult);
+          setSlotsResult(data as AvailableSlotsResult);
         }
       } catch {
-        setConflict(null);
-        setCheckError('Error de conexión al verificar disponibilidad.');
+        setSlotsError('Error de conexión al consultar tus horarios disponibles.');
       } finally {
-        setChecking(false);
+        setSlotsLoading(false);
       }
-    }, DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [date, time, token, request.teamup_event_id, svcDuration]);
+    },
+    [token, request.id],
+  );
+
+  useEffect(() => {
+    if (!date) {
+      setSlotsResult(null);
+      setSlotsError('');
+      setSelectedSlot(null);
+      return;
+    }
+    loadSlots(date);
+  }, [date, loadSlots]);
 
   const submit = async () => {
-    if (!date || !time) {
-      setSubmitError('Selecciona la fecha y la hora.');
+    if (!date || !selectedSlot) {
+      setSubmitError('Selecciona la fecha y uno de los horarios disponibles.');
       return;
     }
     setSubmitting(true);
@@ -118,34 +97,27 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
         body: JSON.stringify({
           id: request.id,
           token,
-          proposed_start_local: `${date}T${time}:00`,
+          proposed_start_local: selectedSlot.start_local,
+          proposed_end_local: selectedSlot.end_local,
           note: note.trim() || undefined,
         }),
       });
       const data = await res.json();
       if (!data.ok) {
         if (data.error_code === 'CONFLICT_DETECTED') {
-          setSubmitError('Ese horario choca con otro compromiso tuyo. Elige otro.');
-          // Re-sincroniza el badge de conflicto con lo que decidió el servidor
-          // (fuente de verdad, ver §3.6: re-validación server-side obligatoria).
-          const events = (data.details?.events as AvailabilityCheckResult['events']) || [];
-          setConflict({
-            ok: true,
-            has_conflict: true,
-            buffer_minutes: (data.details?.buffer_minutes as number) ?? 0,
-            checked_at: new Date().toISOString(),
-            source: 'teamup',
-            events,
-          });
+          // El slot era libre al listarlo pero el calendario cambió en el
+          // medio (§3.6: la re-validación server-side manda). Refrescar la
+          // lista para que el horario ya tomado desaparezca de los chips.
+          setSubmitError('Ese horario se acaba de ocupar en tu calendario. Elige otro.');
+          loadSlots(date);
         } else if (data.error_code === 'REQUEST_ALREADY_RESOLVED') {
           setSubmitError('Esta solicitud ya fue resuelta.');
           onSubmitted();
         } else if (isAmbiguousMutationError(data.error_code)) {
-          // A2 (code review): igual razonamiento que el catch{} de abajo —
-          // NETWORK_ERROR/BAD_RESPONSE del proxy no confirman que la
-          // propuesta no se haya guardado. `onSubmitted` cierra el modal y
-          // refresca; no tiene sentido setear `submitError` porque el modal
-          // se desmonta en el mismo tick.
+          // A2 (code review): NETWORK_ERROR/BAD_RESPONSE del proxy no
+          // confirman que la propuesta no se haya guardado. `onSubmitted`
+          // cierra el modal y refresca; no tiene sentido setear
+          // `submitError` porque el modal se desmonta en el mismo tick.
           onSubmitted();
         } else if (data.error_code === 'AVAILABILITY_CHECK_UNAVAILABLE') {
           setSubmitError('No pudimos verificar tu disponibilidad ahora mismo. Intenta de nuevo en un momento.');
@@ -162,18 +134,15 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
       // (Vercel, ver I3 del code review) después de que el backend ya
       // guardó la propuesta. `onSubmitted` cierra el modal Y dispara el
       // refresh del padre (CambiosClient.refresh) — el cleaner ve el estado
-      // real en la card (pendiente si de verdad no se guardó, o resuelta si
-      // sí) en vez de un mensaje de "no se pudo" que podría ser falso; por
-      // eso aquí NO se setea `submitError`, que de todos modos no llegaría a
-      // mostrarse porque el modal se desmonta en el mismo tick.
+      // real en la card en vez de un "no se pudo" que podría ser falso.
       onSubmitted();
     } finally {
       setSubmitting(false);
     }
   };
 
-  const hasConflict = !!conflict?.has_conflict;
-  const canSubmit = !!date && !!time && !submitting && !hasConflict;
+  const slots = slotsResult?.slots || [];
+  const canSubmit = !!date && !!selectedSlot && !submitting;
 
   const minDate = todayLocalISO();
   const maxDateObj = new Date();
@@ -197,8 +166,9 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
           ) : (
             'un nuevo horario'
           )}
-          . Si no puedes, elige cuándo sí podrías. Le avisaremos al cliente; no se aplica
-          automáticamente en tu calendario.
+          . Si no puedes, elige cuándo sí podrías. Te mostramos solo horarios que no chocan con
+          tus otros compromisos (incluye tu tiempo de traslado). Le avisaremos al cliente; no se
+          aplica automáticamente en tu calendario.
         </p>
 
         <div className="space-y-3">
@@ -214,16 +184,67 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
               className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
             />
           </label>
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">Hora</span>
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              disabled={submitting}
-              className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
-            />
-          </label>
+
+          {date && (
+            <div>
+              <span className="text-sm font-medium text-gray-700">Horarios disponibles</span>
+              <div className="mt-1 rounded-lg border px-3 py-2.5 text-sm min-h-[2.5rem]">
+                {slotsLoading ? (
+                  <span className="text-gray-500 flex items-center gap-2">
+                    <span className="animate-spin">⟳</span> Buscando tus horarios libres…
+                  </span>
+                ) : slotsError ? (
+                  <div className="text-orange-600">
+                    <p>{slotsError}</p>
+                    <button
+                      type="button"
+                      onClick={() => loadSlots(date)}
+                      className="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                ) : slotsResult?.all_day_absence ? (
+                  <span className="text-red-700">
+                    Ese día figuras como no disponible en tu calendario. Elige otra fecha.
+                  </span>
+                ) : slots.length === 0 ? (
+                  <span className="text-red-700">
+                    Ese día no tienes espacio libre para este servicio (contando tus traslados).
+                    Elige otra fecha.
+                  </span>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-4 gap-2">
+                      {slots.map((slot) => {
+                        const selected = selectedSlot?.start_local === slot.start_local;
+                        return (
+                          <button
+                            key={slot.start_local}
+                            type="button"
+                            onClick={() => setSelectedSlot(slot)}
+                            disabled={submitting}
+                            className={
+                              selected
+                                ? 'py-2 px-1 rounded-lg text-sm font-semibold bg-blue-600 text-white'
+                                : 'py-2 px-1 rounded-lg text-sm font-medium bg-gray-100 text-gray-800 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-60'
+                            }
+                          >
+                            {slotTimeLabel(slot.start_local)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-400">
+                      Horas de inicio libres, con {slotsResult?.buffer_minutes ?? 30} min de
+                      traslado antes y después.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           <label className="block">
             <span className="text-sm font-medium text-gray-700">Nota (opcional)</span>
             <textarea
@@ -236,34 +257,6 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
             />
           </label>
         </div>
-
-        {date && time && (
-          <div className="rounded-lg border px-3 py-2.5 text-sm min-h-[2.5rem] flex items-center">
-            {checking ? (
-              <span className="text-gray-500 flex items-center gap-2">
-                <span className="animate-spin">⟳</span> Verificando disponibilidad…
-              </span>
-            ) : hasConflict ? (
-              <div className="text-red-700 w-full">
-                <p className="font-semibold">⚠️ Ese horario choca con otro compromiso tuyo</p>
-                <ul className="mt-1 space-y-0.5">
-                  {(conflict?.events || []).map((ev) => (
-                    <li key={ev.teamup_event_id} className="text-xs">
-                      {ev.kind === 'absence' ? 'No disponible' : 'Servicio programado'}
-                      {ev.title ? ` — ${ev.title}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : checkError ? (
-              <span className="text-orange-600">
-                {checkError} Puedes enviar igual; lo verificaremos de nuevo al procesar tu propuesta.
-              </span>
-            ) : (
-              <span className="text-green-700">✓ Sin conflicto con tu calendario</span>
-            )}
-          </div>
-        )}
 
         {submitError && <p className="text-sm text-red-600">{submitError}</p>}
 

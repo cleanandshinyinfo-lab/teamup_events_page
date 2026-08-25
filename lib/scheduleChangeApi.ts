@@ -16,6 +16,7 @@ import type {
   RejectResult,
   ProposeResult,
   AvailabilityCheckResult,
+  AvailableSlotsResult,
 } from './scheduleChangeTypes';
 
 const DEFAULT_URL = 'https://teamup-webhooks.srv1035704.hstgr.cloud';
@@ -139,7 +140,13 @@ export async function proposeChangeRequest(
   });
 }
 
-/** POST /schedule-change/availability/check — chequeo en vivo (US-07). */
+/**
+ * POST /schedule-change/availability/check — chequeo puntual de un horario
+ * exacto (US-07). Ya no lo usa `ProposeTimeModal` (reemplazado por
+ * `getAvailableSlots`, que filtra huecos en vez de validar uno a la vez),
+ * pero sigue siendo parte del contrato del backend §3.7 — se deja disponible
+ * por si otra vista necesita validar un horario puntual.
+ */
 export async function checkAvailability(params: {
   token: string;
   teamup_event_id: string;
@@ -147,6 +154,25 @@ export async function checkAvailability(params: {
   end_local: string;
 }): Promise<ApiResult<AvailabilityCheckResult>> {
   return call<AvailabilityCheckResult>('/schedule-change/availability/check', {
+    method: 'POST',
+    body: params,
+  });
+}
+
+/**
+ * POST /schedule-change/availability/slots — huecos SIN solapamiento para un
+ * día completo (ya con el buffer de traslado 30/60min aplicado). Lo usa
+ * `ProposeTimeModal` para ofrecer solo horarios elegibles como chips, en vez
+ * de dejar escribir una hora libre y validarla después.
+ */
+export async function getAvailableSlots(params: {
+  token: string;
+  /** id de la SOLICITUD (no del evento TeamUp): el backend saca de ella la
+   *  duración a ofrecer y el evento a excluir del chequeo. */
+  id: string;
+  date: string;
+}): Promise<ApiResult<AvailableSlotsResult>> {
+  return call<AvailableSlotsResult>('/schedule-change/availability/slots', {
     method: 'POST',
     body: params,
   });

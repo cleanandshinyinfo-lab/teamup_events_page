@@ -216,4 +216,36 @@ export interface AvailabilityCheckResult {
   events: ConflictEvent[];
 }
 
+/** Un hueco libre de un día, ya con el buffer de traslado aplicado por el backend. */
+export interface AvailableSlot {
+  start_local: string;
+  end_local: string;
+}
+
+export interface SlotsWindow {
+  start: string;
+  end: string;
+  step_minutes: number;
+}
+
+/**
+ * POST /schedule-change/availability/slots — reemplaza el chequeo debounced
+ * de hora libre en ProposeTimeModal: en vez de que el cleaner escriba una
+ * hora y se le diga si choca, el backend ya filtra y devuelve SOLO los
+ * huecos sin solapamiento para el día elegido (considera los buffers 30/60
+ * min). `slots:[]` si el día no tiene huecos; `all_day_absence:true` si es
+ * un día de ausencia del cleaner. Fail-closed: si TeamUp no responde, el
+ * backend devuelve 503 `AVAILABILITY_CHECK_UNAVAILABLE` (no `slots:[]`, para
+ * no confundir "sin huecos" con "no pudimos verificar").
+ */
+export interface AvailableSlotsResult {
+  ok: true;
+  date: string;
+  duration_minutes: number;
+  buffer_minutes: number;
+  window: SlotsWindow;
+  slots: AvailableSlot[];
+  all_day_absence?: boolean;
+}
+
 export type ApiResult<T> = T | ScheduleChangeApiError;
