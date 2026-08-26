@@ -209,7 +209,8 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
   const hasConflict = !checkUnavailable && !!conflict?.has_conflict;
 
   return (
-    <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+    <div>
+      <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
       <div className="flex items-start justify-between gap-2">
         <p className="font-semibold text-gray-900">{request.client_name || 'Cliente'}</p>
         <span className="shrink-0 text-xs font-bold bg-amber-200 text-amber-900 rounded-full px-2 py-1">
@@ -218,9 +219,10 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
       </div>
       {request.service_address && <p className="mt-1 text-sm text-gray-600">📍 {request.service_address}</p>}
       {request.client_note && (
-        <p className="mt-2 text-sm text-gray-700 bg-white/70 border border-amber-200 rounded-lg px-3 py-2">
-          &quot;{request.client_note}&quot;
-        </p>
+        <div className="mt-2 text-sm bg-white/70 border border-amber-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-gray-500 font-medium">💬 Motivo del cambio</p>
+          <p className="mt-0.5 text-gray-700">&quot;{request.client_note}&quot;</p>
+        </div>
       )}
 
       <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
@@ -271,10 +273,11 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
           error.
         </div>
       )}
+      </div>
 
       {actionError && <p className="mt-2 text-sm text-red-600">{actionError}</p>}
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-3 space-y-2">
         {confirmAccept ? (
           <div className="rounded-lg border border-green-300 bg-white p-3 space-y-2">
             <p className="text-sm text-gray-700">
