@@ -181,7 +181,7 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
               max={maxDate}
               onChange={(e) => setDate(e.target.value)}
               disabled={submitting}
-              className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+              className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:border-[#1b74c4] focus:outline-none focus:ring-1 focus:ring-[#1b74c4] disabled:opacity-60"
             />
           </label>
 
@@ -199,7 +199,7 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
                     <button
                       type="button"
                       onClick={() => loadSlots(date)}
-                      className="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+                      className="mt-2 text-sm font-semibold text-[#1b74c4] hover:text-[#0f4d84]"
                     >
                       Reintentar
                     </button>
@@ -226,8 +226,8 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
                             disabled={submitting}
                             className={
                               selected
-                                ? 'py-2 px-1 rounded-lg text-sm font-semibold bg-blue-600 text-white'
-                                : 'py-2 px-1 rounded-lg text-sm font-medium bg-gray-100 text-gray-800 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-60'
+                                ? 'py-2 px-1 rounded-lg text-sm font-semibold bg-[#1b74c4] text-white'
+                                : 'py-2 px-1 rounded-lg text-sm font-medium bg-gray-100 text-gray-800 hover:bg-[#eef6fd] hover:text-[#1b74c4] disabled:opacity-60'
                             }
                           >
                             {slotTimeLabel(slot.start_local)}
@@ -252,7 +252,7 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
               onChange={(e) => setNote(e.target.value.slice(0, 500))}
               disabled={submitting}
               rows={2}
-              className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+              className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-[#1b74c4] focus:outline-none focus:ring-1 focus:ring-[#1b74c4] disabled:opacity-60"
               placeholder="Ej: Ese día sí puedo en la mañana"
             />
           </label>
@@ -271,7 +271,7 @@ export default function ProposeTimeModal({ token, request, onClose, onSubmitted 
           <button
             onClick={submit}
             disabled={!canSubmit}
-            className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 px-4 bg-[#1b74c4] hover:bg-[#155f9f] active:bg-[#0f4d84] text-white font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {submitting ? <span className="animate-spin text-lg">⟳</span> : 'Enviar propuesta'}
           </button>

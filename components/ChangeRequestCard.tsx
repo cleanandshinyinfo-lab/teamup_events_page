@@ -19,13 +19,35 @@ function isPending(r: ChangeRequest): r is PendingChangeRequest {
   return r.status === 'pendiente';
 }
 
+// Diseño propuesta-cambios-horario.html: sin emojis en estados, colores de
+// marca; verde y rojo quedan reservados a los botones de aceptar/rechazar.
 const STATUS_LABEL: Record<string, { text: string; className: string }> = {
-  aceptada: { text: '✅ Aceptada', className: 'bg-green-100 text-green-800' },
-  rechazada: { text: '❌ Rechazada', className: 'bg-red-100 text-red-700' },
-  propuesta_alternativa: { text: '🕐 Propusiste otro horario', className: 'bg-blue-100 text-blue-700' },
-  error_teamup: { text: '⚠️ Error al aplicar el cambio', className: 'bg-orange-100 text-orange-800' },
-  cancelada: { text: '🚫 Cancelada por el equipo', className: 'bg-gray-200 text-gray-700' },
+  aceptada: { text: 'Aceptada', className: 'bg-[#eef6fd] text-[#1b74c4] border border-[#dbeafc]' },
+  rechazada: { text: 'Rechazada', className: 'bg-[#eef1f5] text-[#48586a]' },
+  propuesta_alternativa: { text: 'Propusiste otro horario', className: 'bg-[#eef6fd] text-[#1b74c4] border border-[#dbeafc]' },
+  error_teamup: { text: 'Error al aplicar el cambio', className: 'bg-orange-100 text-orange-800' },
+  cancelada: { text: 'Cancelada por el equipo', className: 'bg-[#eef1f5] text-[#48586a]' },
 };
+
+// Formato corto para la tarjeta ("sáb 29 ago" · "10:00 am"); el formato largo
+// queda para mensajes y confirmaciones (regla del mockup). Se parsea el
+// wall-clock del backend directamente — nunca con el tz del navegador.
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function shortDateParts(wallClock: string | null | undefined): { date: string; time: string } | null {
+  if (!wallClock) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(wallClock);
+  if (!m) return null;
+  const [, y, mo, d, h, min] = m;
+  const dow = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d))).getUTCDay();
+  const h24 = Number(h);
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return {
+    date: `${DIAS[dow]} ${Number(d)} ${MESES[Number(mo) - 1]}`,
+    time: `${h12}:${min} ${h24 >= 12 ? 'pm' : 'am'}`,
+  };
+}
 
 function formatDecidedAt(iso: string | null): string {
   if (!iso) return '';
@@ -171,31 +193,31 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
   };
 
   if (!isPending(request)) {
-    const label = STATUS_LABEL[request.status] || { text: request.status, className: 'bg-gray-100 text-gray-700' };
+    const label = STATUS_LABEL[request.status] || { text: request.status, className: 'bg-[#eef1f5] text-[#48586a]' };
     return (
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 opacity-90">
+      <div className="rounded-[14px] border border-[#d7dee6] bg-white p-4 opacity-95">
         <div className="flex items-start justify-between gap-2">
-          <p className="font-semibold text-gray-800">{request.client_name || 'Cliente'}</p>
-          <span className={`shrink-0 text-xs font-medium rounded-full px-2 py-1 ${label.className}`}>
+          <p className="font-bold text-[#16202b]">{request.client_name || 'Cliente'}</p>
+          <span className={`shrink-0 text-[11px] font-bold rounded-full px-2.5 py-1 ${label.className}`}>
             {label.text}
           </span>
         </div>
         {request.current_datetime_text && (
-          <p className="mt-2 text-sm text-gray-600">🗓 Horario actual: {request.current_datetime_text}</p>
+          <p className="mt-2 text-sm text-[#48586a]">Horario actual: {request.current_datetime_text}</p>
         )}
         {request.requested_datetime_text && (
-          <p className="mt-1 text-sm text-gray-600">📅 Solicitó: {request.requested_datetime_text}</p>
+          <p className="mt-1 text-sm text-[#48586a]">Solicitó: {request.requested_datetime_text}</p>
         )}
         {request.status === 'propuesta_alternativa' && (request.proposed_datetime_text || request.proposed_start_local) && (
-          <p className="mt-1 text-sm text-blue-700 font-medium">
-            🕐 Propusiste: {request.proposed_datetime_text || request.proposed_start_local}
+          <p className="mt-1 text-sm text-[#0f4d84] font-semibold">
+            Propusiste: {request.proposed_datetime_text || request.proposed_start_local}
           </p>
         )}
         {request.decision_note && (
-          <p className="mt-1 text-sm text-gray-600 italic">&quot;{request.decision_note}&quot;</p>
+          <p className="mt-1 text-sm text-[#48586a] italic">&quot;{request.decision_note}&quot;</p>
         )}
         {request.decided_at && (
-          <p className="mt-2 text-xs text-gray-400">Resuelto el {formatDecidedAt(request.decided_at)}</p>
+          <p className="mt-2 text-xs text-[#7a8899]">Resuelto el {formatDecidedAt(request.decided_at)}</p>
         )}
       </div>
     );
@@ -208,119 +230,143 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
   // request.can_accept ya viene en false desde el servidor en ese caso.
   const hasConflict = !checkUnavailable && !!conflict?.has_conflict;
 
+  const currentShort = shortDateParts(request.current_start_local);
+  const requestedShort = shortDateParts(request.requested_start_local);
+
   return (
     <div>
-      <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-gray-900">{request.client_name || 'Cliente'}</p>
-        <span className="shrink-0 text-xs font-bold bg-amber-200 text-amber-900 rounded-full px-2 py-1">
-          Pendiente
-        </span>
-      </div>
-      {request.service_address && <p className="mt-1 text-sm text-gray-600">📍 {request.service_address}</p>}
-      {request.client_note && (
-        <div className="mt-2 text-sm bg-white/70 border border-amber-200 rounded-lg px-3 py-2">
-          <p className="text-xs text-gray-500 font-medium">💬 Motivo del cambio</p>
-          <p className="mt-0.5 text-gray-700">&quot;{request.client_note}&quot;</p>
+      <div className="rounded-[14px] border border-[#d7dee6] bg-white overflow-hidden shadow-[0_1px_2px_rgba(22,32,43,0.05)]">
+        {/* Cabecera azul de marca */}
+        <div className="bg-[#1b74c4] px-3.5 py-3 flex items-center justify-between gap-2.5">
+          <div className="min-w-0">
+            <p className="text-white font-bold text-[15px] leading-tight">{request.client_name || 'Cliente'}</p>
+            {request.service_address && (
+              <p className="text-[#cfe6fb] text-xs mt-0.5">{request.service_address}</p>
+            )}
+          </div>
+          <span className="shrink-0 text-[11px] font-bold tracking-wide bg-white text-[#1b74c4] rounded-full px-2.5 py-1">
+            Pendiente
+          </span>
         </div>
-      )}
 
-      <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
-        <div className="rounded-lg bg-white border border-gray-200 px-3 py-2">
-          <p className="text-xs text-gray-400 font-medium">Horario actual</p>
-          <p className="text-gray-800 font-medium">{request.current_datetime_text || '—'}</p>
+        {/* Original → solicitado en una sola fila */}
+        <div className="grid grid-cols-[1fr_24px_1fr] items-start gap-1.5 px-3.5 py-4">
+          <div className="opacity-60">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#7a8899] mb-1.5 min-h-[26px] leading-tight">
+              Horario original
+            </p>
+            <p className="text-[14.5px] font-bold text-[#16202b] leading-tight line-through decoration-[#d7dee6]">
+              {currentShort?.date || request.current_datetime_text || '—'}
+            </p>
+            {currentShort && <p className="text-[12.5px] text-[#48586a] mt-0.5">{currentShort.time}</p>}
+          </div>
+          <div className="flex items-center justify-center text-[#1b74c4] text-lg font-bold mt-[26px]">→</div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#1b74c4] mb-1.5 min-h-[26px] leading-tight">
+              Horario solicitado
+            </p>
+            <p className="text-[14.5px] font-bold text-[#0f4d84] leading-tight">
+              {requestedShort?.date || request.requested_datetime_text || '—'}
+            </p>
+            {requestedShort && <p className="text-[12.5px] text-[#48586a] mt-0.5">{requestedShort.time}</p>}
+          </div>
         </div>
-        <div className="rounded-lg bg-white border border-blue-200 px-3 py-2">
-          <p className="text-xs text-blue-500 font-medium">Horario solicitado por el cliente</p>
-          <p className="text-blue-800 font-semibold">{request.requested_datetime_text || '—'}</p>
-        </div>
-      </div>
 
-      {hasConflict && (
-        <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2.5">
-          <p className="text-sm font-semibold text-red-700">
-            ⚠️ Ese horario choca con otro compromiso tuyo
-          </p>
-          <ul className="mt-1.5 space-y-1">
-            {(conflict?.events || []).map((ev) => (
-              <li key={ev.teamup_event_id} className="text-xs text-red-700">
-                {conflictEventLabel(ev.kind)}
-                {ev.title ? ` — ${ev.title}` : ''}
-                {ev.all_day ? ' (todo el día)' : ''}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-1.5 text-xs text-red-600">
-            No puedes aceptar este horario. Elige &quot;Rechazar&quot; o &quot;Proponer otro horario&quot;.
-          </p>
-        </div>
-      )}
-      {checkUnavailable && (
-        <div className="mt-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2.5">
-          <p className="text-sm font-semibold text-orange-700">
-            ⚠️ No pudimos verificar tu disponibilidad
-          </p>
-          <p className="mt-1 text-xs text-orange-700">
-            No podemos confirmar si ese horario choca con algo en tu calendario ahora mismo — por
-            eso no puedes aceptar todavía. Usa &quot;Rechazar&quot; o &quot;Proponer otro horario&quot;, o
-            vuelve a abrir este enlace en un momento.
-          </p>
-        </div>
-      )}
-      {!hasConflict && !checkUnavailable && request.block_reason && (
-        <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
-          Por ahora no puedes aceptar este horario. Contacta a nuestro equipo si crees que es un
-          error.
-        </div>
-      )}
+        {/* Motivo / explicación del cliente */}
+        {request.client_note && (
+          <div className="border-t border-[#eef1f5] px-3.5 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#1b74c4] mb-1">
+              Detalle de la solicitud
+            </p>
+            <p className="text-[13.5px] leading-relaxed text-[#48586a]">{request.client_note}</p>
+          </div>
+        )}
+
+        {hasConflict && (
+          <div className="border-t border-[#eef1f5] px-3.5 py-3 bg-red-50">
+            <p className="text-sm font-semibold text-red-700">Ese horario choca con otro compromiso tuyo</p>
+            <ul className="mt-1.5 space-y-1">
+              {(conflict?.events || []).map((ev) => (
+                <li key={ev.teamup_event_id} className="text-xs text-red-700">
+                  {conflictEventLabel(ev.kind)}
+                  {ev.title ? ` — ${ev.title}` : ''}
+                  {ev.all_day ? ' (todo el día)' : ''}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs text-red-600">
+              No puedes aceptar este horario. Elige &quot;Rechazar&quot; o &quot;Proponer otro horario&quot;.
+            </p>
+          </div>
+        )}
+        {checkUnavailable && (
+          <div className="border-t border-[#eef1f5] px-3.5 py-3 bg-orange-50">
+            <p className="text-sm font-semibold text-orange-700">No pudimos verificar tu disponibilidad</p>
+            <p className="mt-1 text-xs text-orange-700">
+              No podemos confirmar si ese horario choca con algo en tu calendario ahora mismo — por
+              eso no puedes aceptar todavía. Usa &quot;Rechazar&quot; o &quot;Proponer otro horario&quot;, o
+              vuelve a abrir este enlace en un momento.
+            </p>
+          </div>
+        )}
+        {!hasConflict && !checkUnavailable && request.block_reason && (
+          <div className="border-t border-[#eef1f5] px-3.5 py-3 bg-orange-50 text-xs text-orange-700">
+            Por ahora no puedes aceptar este horario. Contacta a nuestro equipo si crees que es un
+            error.
+          </div>
+        )}
       </div>
 
       {actionError && <p className="mt-2 text-sm text-red-600">{actionError}</p>}
 
-      <div className="mt-3 space-y-2">
-        {confirmAccept ? (
-          <div className="rounded-lg border border-green-300 bg-white p-3 space-y-2">
-            <p className="text-sm text-gray-700">
-              ¿Confirmas el nuevo horario:{' '}
-              <strong>{request.requested_datetime_text}</strong>?
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmAccept(false)}
-                disabled={busy}
-                className="flex-1 py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-sm disabled:opacity-60"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={doAccept}
-                disabled={busy}
-                className="flex-1 py-2 px-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-lg text-sm disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {busy ? <span className="animate-spin">⟳</span> : '✓ Sí, confirmar'}
-              </button>
+      {/* Botones fuera de la tarjeta. Si no puede aceptar, el botón verde NO se
+          muestra deshabilitado: el aviso de arriba explica por qué y quedan
+          solo las acciones usables (regla del mockup). */}
+      <div className="mt-3 grid gap-[9px]">
+        {request.can_accept &&
+          (confirmAccept ? (
+            <div className="rounded-[11px] border border-[#cfe4f7] bg-white p-3 space-y-2">
+              <p className="text-sm text-[#48586a]">
+                ¿Confirmas el nuevo horario:{' '}
+                <strong className="text-[#16202b]">{request.requested_datetime_text}</strong>?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmAccept(false)}
+                  disabled={busy}
+                  className="flex-1 py-2 px-3 bg-[#eef1f5] hover:bg-[#e2e8ef] text-[#48586a] font-semibold rounded-[11px] text-sm disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={doAccept}
+                  disabled={busy}
+                  className="flex-1 py-2 px-3 bg-[#34A853] hover:bg-[#2d9348] active:bg-[#27803f] text-white font-semibold rounded-[11px] text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {busy ? <span className="animate-spin">⟳</span> : 'Sí, confirmar'}
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setConfirmAccept(true)}
-            disabled={busy || !request.can_accept}
-            className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold rounded-xl text-base transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Aceptar nuevo horario
-          </button>
-        )}
+          ) : (
+            <button
+              onClick={() => setConfirmAccept(true)}
+              disabled={busy}
+              className="w-full py-3.5 px-4 bg-[#34A853] hover:bg-[#2d9348] active:bg-[#27803f] text-white font-semibold rounded-[11px] text-[15px] transition-colors shadow-[0_2px_6px_rgba(52,168,83,0.28)] disabled:opacity-60"
+            >
+              Aceptar el nuevo horario
+            </button>
+          ))}
 
         {showRejectForm ? (
-          <div className="rounded-lg border border-red-200 bg-white p-3 space-y-2">
+          <div className="rounded-[11px] border border-[#f0c7c3] bg-white p-3 space-y-2">
             <label className="block">
-              <span className="text-xs text-gray-500">Motivo (opcional)</span>
+              <span className="text-xs text-[#7a8899]">Motivo (opcional)</span>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value.slice(0, 500))}
                 disabled={busy}
                 rows={2}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400 disabled:opacity-60"
+                className="mt-1 w-full rounded-[11px] border border-[#d7dee6] px-3 py-2 text-sm focus:border-[#d93025] focus:outline-none focus:ring-1 focus:ring-[#d93025] disabled:opacity-60"
                 placeholder="Ej: Ese día tengo otro compromiso"
               />
             </label>
@@ -328,14 +374,14 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
               <button
                 onClick={() => setShowRejectForm(false)}
                 disabled={busy}
-                className="flex-1 py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-sm disabled:opacity-60"
+                className="flex-1 py-2 px-3 bg-[#eef1f5] hover:bg-[#e2e8ef] text-[#48586a] font-semibold rounded-[11px] text-sm disabled:opacity-60"
               >
                 Cancelar
               </button>
               <button
                 onClick={doReject}
                 disabled={busy}
-                className="flex-1 py-2 px-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold rounded-lg text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                className="flex-1 py-2 px-3 bg-[#d93025] hover:bg-[#c22a20] active:bg-[#ab251c] text-white font-semibold rounded-[11px] text-sm disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {busy ? <span className="animate-spin">⟳</span> : 'Confirmar rechazo'}
               </button>
@@ -345,7 +391,7 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
           <button
             onClick={() => setShowRejectForm(true)}
             disabled={busy}
-            className="w-full py-2.5 px-6 bg-white hover:bg-red-50 active:bg-red-100 text-red-600 font-semibold rounded-xl text-sm border border-red-300 transition-colors disabled:opacity-60"
+            className="w-full py-3.5 px-4 bg-white hover:bg-red-50 active:bg-red-100 text-[#d93025] font-semibold rounded-[11px] text-[15px] border-[1.5px] border-[#f0c7c3] transition-colors disabled:opacity-60"
           >
             Rechazar
           </button>
@@ -354,9 +400,9 @@ export default function ChangeRequestCard({ token, request, onChanged }: ChangeR
         <button
           onClick={() => setShowProposeModal(true)}
           disabled={busy}
-          className="w-full py-2.5 px-6 bg-white hover:bg-blue-50 active:bg-blue-100 text-blue-700 font-semibold rounded-xl text-sm border border-blue-300 transition-colors disabled:opacity-60"
+          className="w-full py-3.5 px-4 bg-[#1b74c4]/[0.06] hover:bg-[#1b74c4]/[0.12] active:bg-[#1b74c4]/[0.18] text-[#1b74c4] font-semibold rounded-[11px] text-[15px] border-[1.5px] border-[#cfe4f7] transition-colors disabled:opacity-60"
         >
-          🕐 Proponer otro horario
+          Proponer otro horario
         </button>
       </div>
 

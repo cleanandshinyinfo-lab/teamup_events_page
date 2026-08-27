@@ -57,14 +57,14 @@ export default function CambiosClient({ token, initialData }: CambiosClientProps
   return (
     <div className="space-y-6">
       <section>
-        <div className="flex items-center gap-2 mb-2">
-          <h2 className="text-lg font-semibold text-gray-900">Solicitudes de cambio</h2>
+        <div className="flex items-center gap-[9px] mb-3">
+          <h2 className="text-[17px] font-bold text-[#16202b]">Solicitudes de cambio</h2>
           {pending.length > 0 && (
-            <span className="text-xs font-bold bg-amber-100 text-amber-800 rounded-full px-2 py-0.5">
+            <span className="text-[11.5px] font-bold bg-[#eef6fd] text-[#1b74c4] border border-[#dbeafc] rounded-full px-2.5 py-1">
               {pending.length} pendiente{pending.length !== 1 ? 's' : ''}
             </span>
           )}
-          {refreshing && <span className="text-xs text-gray-400 animate-pulse">Actualizando…</span>}
+          {refreshing && <span className="text-xs text-[#7a8899] animate-pulse">Actualizando…</span>}
         </div>
 
         {refreshError && (
@@ -77,14 +77,13 @@ export default function CambiosClient({ token, initialData }: CambiosClientProps
         )}
 
         {!hasRequests ? (
-          <div className="p-6 bg-white rounded-xl border border-gray-200 text-center">
-            <div className="text-3xl">📭</div>
-            <p className="text-gray-700 font-medium mt-2">
+          <div className="p-6 bg-white rounded-[14px] border border-[#d7dee6] text-center">
+            <p className="text-[#48586a] font-medium">
               No tienes solicitudes de cambio de horario por ahora.
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {pending.map((r) => (
               <ChangeRequestCard key={r.id} token={token} request={r} onChanged={refresh} />
             ))}

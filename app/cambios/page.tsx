@@ -102,11 +102,11 @@ export default async function CambiosPage({ searchParams }: PageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 py-6 px-4">
+    <main className="min-h-screen bg-[#f7f8fa] py-6 px-4">
       <div className="max-w-lg mx-auto">
         <header className="mb-5">
-          <h1 className="text-2xl font-bold text-gray-900">Mis cambios de horario</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-[25px] font-bold tracking-tight text-[#16202b]">Mis cambios de horario</h1>
+          <p className="text-[#48586a] text-[13.5px] leading-relaxed mt-2">
             {data.cleaner.name ? `Hola ${data.cleaner.name} 👋. ` : ''}
             Aquí puedes ver tus próximos servicios y responder las solicitudes de cambio de
             horario que hagan tus clientes.
