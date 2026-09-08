@@ -29,6 +29,11 @@ interface InfoRow {
   duration_hours: number | string | null;
   required_cleaners: number | null;
   solo_mujer: boolean;
+  /** TRUE si el cliente tiene ficha en Glide.clientdb (mismo match por nombre que usa sendRappel). */
+  client_in_db: boolean;
+  /** Preferencias de rappel del cliente (Glide.clientdb). NULL = no configurado => sendRappel lo trata como activado. */
+  rappel_quo_activado: boolean | null;
+  rappel_correo_activado: boolean | null;
 }
 
 export interface ServiceResponseResult {
@@ -85,10 +90,22 @@ async function postSlack(params: {
 
 // Bloque "Pasos" dinámico: refleja lo que la automatización HIZO en esta aceptación
 // (rappel/cuentas corren antes de postear a Slack, así que aquí ya se sabe el resultado).
+// Línea informativa para el hilo: si el cliente tiene activado o desactivado el rappel por
+// Quo y por correo (Glide.clientdb). Misma regla que sendRappel: NULL cuenta como activado.
+function rappelPrefsLine(info: Pick<InfoRow, 'client_in_db' | 'rappel_quo_activado' | 'rappel_correo_activado'>): string {
+  if (!info.client_in_db) {
+    return '*Rappel del cliente:* ⚠️ cliente sin ficha en Glide (clientdb) — no se puede saber si tiene el rappel por Quo/correo activado';
+  }
+  const estado = (v: boolean | null) => (v === false ? '❌ desactivado' : '✅ activado');
+  return `*Rappel del cliente:* Quo ${estado(info.rappel_quo_activado)} · Correo ${estado(info.rappel_correo_activado)}`;
+}
+
 function pasosBlock(opts: {
   conCliente: boolean;
   rappel?: RappelOutcome;
   cuentasOk?: boolean;
+  /** Línea con las preferencias de rappel del cliente (Quo/correo); se agrega al final del bloque. */
+  rappelPrefs?: string;
 }): string {
   const realizados: string[] = ['Se ajustó el TeamUp'];
   if (opts.conCliente) {
@@ -127,7 +144,8 @@ function pasosBlock(opts: {
 
   return (
     `*Pasos realizados por la automatización:* ${realizados.join(', ')}\n\n` +
-    `*Pasos pendientes:* ${pendientes.length ? pendientes.join('; ') : 'Ninguno ✅'}`
+    `*Pasos pendientes:* ${pendientes.length ? pendientes.join('; ') : 'Ninguno ✅'}` +
+    (opts.rappelPrefs ? `\n\n${opts.rappelPrefs}` : '')
   );
 }
 
@@ -184,16 +202,31 @@ export async function notifyServiceResponse(params: {
               END AS days_diff,
               cardinality(COALESCE(rc.cleaner_subcalendar_ids, '{}'::text[])) AS assigned_count,
               rc.frequency, rc.duration_hours, rc.required_cleaners,
-              ('solo_mujer' = ANY(COALESCE(rc.service_management, '{}'::text[]))) AS solo_mujer
+              ('solo_mujer' = ANY(COALESCE(rc.service_management, '{}'::text[]))) AS solo_mujer,
+              (cd.nombredelcliente IS NOT NULL) AS client_in_db,
+              cd.rappelopenphoneactivado AS rappel_quo_activado,
+              cd.rappelcorreoactivado AS rappel_correo_activado
        FROM "Glide".recent_contracts rc
        LEFT JOIN public.last_min_cancellations lmc ON lmc.teamup_event_id = rc.teamup_event_id
+       -- Mismo match por nombre que fetchRappelRow (lib/rappel.ts), para reportar las
+       -- mismas banderas que usa sendRappel al decidir por qué canales manda el rappel.
+       LEFT JOIN "Glide".clientdb cd
+         ON lower(trim(cd.nombredelcliente)) = lower(trim(rc.client_name))
        WHERE rc.teamup_event_id = $1
        LIMIT 1`,
       [params.eventId],
     );
     const info =
       rows[0] ??
-      ({ is_last_min: false, date_changed: false, days_diff: 0, solo_mujer: false } as InfoRow);
+      ({
+        is_last_min: false,
+        date_changed: false,
+        days_diff: 0,
+        solo_mujer: false,
+        client_in_db: false,
+        rappel_quo_activado: null,
+        rappel_correo_activado: null,
+      } as InfoRow);
     const name = params.cleanerName;
     const eventId = params.eventId;
 
@@ -289,6 +322,7 @@ export async function notifyServiceResponse(params: {
       conCliente: result.notifyClient,
       rappel: params.rappelOutcome,
       cuentasOk: params.cuentasOk,
+      rappelPrefs: rappelPrefsLine(info),
     });
 
     if (esc1) {
