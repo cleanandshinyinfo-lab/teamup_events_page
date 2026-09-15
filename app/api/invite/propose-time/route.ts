@@ -7,8 +7,12 @@ interface EnrichRow {
   start_date_es: string | null;
 }
 
-// Mensaje a #servicio-al-cliente: la cleaner puede tomar el servicio cancelado
-// pero llegando a otra hora. El equipo coordina con el cliente desde ahí.
+// Canal por defecto: #servicios-agendados-desde-vercel (mismo canal donde llegan las
+// aceptaciones desde la web). Se puede sobreescribir con SLACK_PROPUESTA_HORARIO_CHANNEL_ID.
+const DEFAULT_PROPUESTA_CHANNEL_ID = 'C0AHW0E3BFU';
+
+// Mensaje a #servicios-agendados-desde-vercel: la cleaner puede tomar el servicio
+// cancelado pero llegando a otra hora. El equipo coordina con el cliente desde ahí.
 function buildSlackText(params: {
   cleanerName: string;
   proposedTime: string;
@@ -28,15 +32,15 @@ function buildSlackText(params: {
   return lines.join('\n');
 }
 
-async function notifyServicioAlCliente(params: {
+async function notifyPropuestaHorario(params: {
   eventId: string;
   cleanerName: string;
   proposedTime: string;
 }): Promise<void> {
   const token = process.env.SLACK_BOT_TOKEN;
-  const channel = process.env.SLACK_SERVICIO_AL_CLIENTE_CHANNEL_ID;
-  if (!token || !channel) {
-    console.warn('[SLACK_SERVICIO_AL_CLIENTE] SLACK_BOT_TOKEN o SLACK_SERVICIO_AL_CLIENTE_CHANNEL_ID no configurados');
+  const channel = process.env.SLACK_PROPUESTA_HORARIO_CHANNEL_ID || DEFAULT_PROPUESTA_CHANNEL_ID;
+  if (!token) {
+    console.warn('[SLACK_PROPUESTA_HORARIO] SLACK_BOT_TOKEN no configurado');
     return;
   }
   try {
@@ -68,10 +72,10 @@ async function notifyServicioAlCliente(params: {
     });
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     if (!data.ok) {
-      console.error('[SLACK_SERVICIO_AL_CLIENTE] chat.postMessage error:', res.status, data.error || 'unknown_error');
+      console.error('[SLACK_PROPUESTA_HORARIO] chat.postMessage error:', res.status, data.error || 'unknown_error');
     }
   } catch (err) {
-    console.error('[SLACK_SERVICIO_AL_CLIENTE] error:', err);
+    console.error('[SLACK_PROPUESTA_HORARIO] error:', err);
   }
 }
 
@@ -104,7 +108,7 @@ export async function POST(req: NextRequest) {
 
     await recordProposedTime(token, proposedTime);
 
-    await notifyServicioAlCliente({
+    await notifyPropuestaHorario({
       eventId: invitation.teamup_event_id,
       cleanerName: invitation.cleaner_name,
       proposedTime,
