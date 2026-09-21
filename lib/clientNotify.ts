@@ -1,3 +1,4 @@
+import { toGsm7 } from './gsm7';
 import { getPool } from './db';
 
 // OpenPhone phoneNumberId desde el cual sale el SMS, por ciudad (igual que los rappels).
@@ -195,16 +196,24 @@ interface ClientRow {
   cleaners: CleanerProfile[] | null;
 }
 
+// Único punto de salida a OpenPhone de esta app (rappel mismo día, equipo de
+// reemplazo): el cuerpo YA renderizado se translitera a GSM-7 aquí (ê->e,
+// ç->c, ô->o, "août"->"aout", comillas curvas, NBSP...) — un solo carácter
+// fuera de GSM-7 pasa el SMS entero a UCS-2. é/è/à se conservan; emojis no
+// se tocan. Ver lib/gsm7.ts.
 export async function sendQuo(phone: string, body: string, fromId: string): Promise<boolean> {
   const apiKey = process.env.OPENPHONE_API_KEY;
   if (!apiKey) {
     console.warn('[CLIENT_NOTIFY] OPENPHONE_API_KEY no configurado');
     return false;
   }
+  const gsm = toGsm7(body);
+  if (gsm.changed) console.log('[CLIENT_NOTIFY] gsm7: cuerpo transliterado');
+  if (gsm.remaining.length) console.warn('[CLIENT_NOTIFY] gsm7: fuera de GSM-7 (se deja):', gsm.remaining.join(''));
   const res = await fetch('https://api.openphone.com/v1/messages', {
     method: 'POST',
     headers: { Authorization: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: fromId, to: [phone], content: body }),
+    body: JSON.stringify({ from: fromId, to: [phone], content: gsm.text }),
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) {
