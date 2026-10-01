@@ -5,6 +5,7 @@ import {
   getPool,
   respondToInvitation,
 } from '@/lib/db';
+import { LINEA_BONO } from '@/lib/cancelThread';
 
 type RespondAction = 'accept' | 'decline';
 type AssignOutcome = 'success' | 'already_assigned' | 'failed';
@@ -32,6 +33,7 @@ interface SlackEnrichRow {
   elclienteaceptoqueelcleanersea: string | null;
   tipodelimpiezafr: string | null;
   cuenta_con_auto_o_pase_valido: string | null;
+  bono: boolean | null;
 }
 
 interface SlackPayload {
@@ -74,6 +76,8 @@ function buildSlackText(payload: SlackPayload, db: SlackEnrichRow): string {
 
   const lines = [
     header,
+    // Bono por tomar un servicio cancelado de último minuto en su horario original (Mateo, 1-oct-2026).
+    ...(payload.outcome === 'success' && db.bono ? [LINEA_BONO] : []),
     ...(payload.outcome === 'success' && isRecurring
       ? ['👉 _Revisar que todos los contratos dentro del ciclo se hayan asignado correctamente_']
       : []),
@@ -113,7 +117,8 @@ async function notifySlack(payload: SlackPayload) {
         "Glide".format_spanish_date(rc.start_teamup_local::timestamptz) AS start_date_es,
         cd.elclienteaceptoqueelcleanersea,
         cd.tipodelimpiezafr,
-        cl.cuenta_con_auto_o_pase_valido
+        cl.cuenta_con_auto_o_pase_valido,
+        public.tiene_bono_last_min(rc.teamup_event_id) AS bono
       FROM "Glide".recent_contracts rc
       LEFT JOIN "Glide".clientdb cd
         ON lower(trim(rc.client_name)) = lower(trim(cd.nombredelcliente))

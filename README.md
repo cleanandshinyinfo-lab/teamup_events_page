@@ -116,6 +116,8 @@ The calendar system. Event IDs (`teamup_event_id`) come from Teamup and are used
 
 ## Data flow on "Accept"
 
+**Bono last-min** (Mateo, 1-oct-2026): when the accepted service was a last-minute cancellation still at its original date/time (`public.tiene_bono_last_min`), the Slack message (Escenario #1 thread in #cancelacion-de-ultimo-minuto, and the invitations message) adds the blockquote `> 💰 *Tiene bono de 10$ por aceptar un servicio cancelado de último minuto*`. The TeamUp note is written by outbox-worker.
+
 ```
 Cleaner clicks Accept
         │

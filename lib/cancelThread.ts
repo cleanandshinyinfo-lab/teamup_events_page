@@ -34,7 +34,13 @@ interface InfoRow {
   /** Preferencias de rappel del cliente (Glide.clientdb). NULL = no configurado => sendRappel lo trata como activado. */
   rappel_quo_activado: boolean | null;
   rappel_correo_activado: boolean | null;
+  /** Cancelado de último minuto y sigue en su fecha/hora original (public.tiene_bono_last_min):
+   *  la cleaner que lo toma gana bono de 10$ (Mateo, 1-oct-2026). */
+  bono: boolean;
 }
+
+/** Blockquote del bono para los avisos de Slack (bien visible, debajo del título). */
+export const LINEA_BONO = '> 💰 *Tiene bono de 10$ por aceptar un servicio cancelado de último minuto*';
 
 export interface ServiceResponseResult {
   /** ¿Toca avisar al cliente (QUO + correo)? Solo Esc.1 y Esc.2.1. */
@@ -205,7 +211,8 @@ export async function notifyServiceResponse(params: {
               ('solo_mujer' = ANY(COALESCE(rc.service_management, '{}'::text[]))) AS solo_mujer,
               (cd.nombredelcliente IS NOT NULL) AS client_in_db,
               cd.rappelopenphoneactivado AS rappel_quo_activado,
-              cd.rappelcorreoactivado AS rappel_correo_activado
+              cd.rappelcorreoactivado AS rappel_correo_activado,
+              public.tiene_bono_last_min(rc.teamup_event_id) AS bono
        FROM "Glide".recent_contracts rc
        LEFT JOIN public.last_min_cancellations lmc ON lmc.teamup_event_id = rc.teamup_event_id
        -- Mismo match por nombre que fetchRappelRow (lib/rappel.ts), para reportar las
@@ -226,6 +233,7 @@ export async function notifyServiceResponse(params: {
         client_in_db: false,
         rappel_quo_activado: null,
         rappel_correo_activado: null,
+        bono: false,
       } as InfoRow);
     const name = params.cleanerName;
     const eventId = params.eventId;
@@ -329,6 +337,7 @@ export async function notifyServiceResponse(params: {
       const text =
         `*ESCENARIO #1 → Cleaner aceptó el servicio en el horario original (${info.fecha_es || '—'})*\n\n` +
         `La cleaner *${name}* tomó el servicio de *${info.client_name || '—'}* cancelado de último minuto ✅\n\n` +
+        (info.bono ? `${LINEA_BONO}\n\n` : '') +
         `*La fecha y hora del servicio según TeamUp es:* ${info.fecha_es || '—'}\n\n` +
         `---\n\n` +
         (equipoConOtraAsignada ? `${pasos}\n\n${notaEquipo}` : pasos) +
