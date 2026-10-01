@@ -76,7 +76,7 @@ function buildSlackText(payload: SlackPayload, db: SlackEnrichRow): string {
 
   const lines = [
     header,
-    // Bono por tomar un servicio cancelado de último minuto en su horario original (Mateo, 1-oct-2026).
+    // Bono por tomar un servicio cancelado de último minuto para el mismo día (Mateo, 1-oct-2026).
     ...(payload.outcome === 'success' && db.bono ? [LINEA_BONO] : []),
     ...(payload.outcome === 'success' && isRecurring
       ? ['👉 _Revisar que todos los contratos dentro del ciclo se hayan asignado correctamente_']

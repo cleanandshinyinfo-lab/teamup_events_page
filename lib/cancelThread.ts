@@ -34,8 +34,8 @@ interface InfoRow {
   /** Preferencias de rappel del cliente (Glide.clientdb). NULL = no configurado => sendRappel lo trata como activado. */
   rappel_quo_activado: boolean | null;
   rappel_correo_activado: boolean | null;
-  /** Cancelado de último minuto y sigue en su fecha/hora original (public.tiene_bono_last_min):
-   *  la cleaner que lo toma gana bono de 10$ (Mateo, 1-oct-2026). */
+  /** Cancelado de último minuto y se toma para el mismo día de la fecha original, aunque cambie la hora
+   *  (public.tiene_bono_last_min): la cleaner que lo toma gana bono de 10$ (Mateo, 1-oct-2026). */
   bono: boolean;
 }
 
@@ -357,6 +357,8 @@ export async function notifyServiceResponse(params: {
       `*Fecha verdaderamente original:* ${info.fecha_original_es || '—'}`;
     const cuerpoComun =
       `La cleaner *${name}* tomó el servicio de *${info.client_name || '—'}* cancelado de último minuto ✅\n\n` +
+      // Mismo día aunque en otro horario = reasignación: también tiene bono (Mateo, 1-oct-2026).
+      (info.bono ? `${LINEA_BONO}\n\n` : '') +
       `*La fecha y hora del servicio según TeamUp es:* ${info.fecha_es || '—'} ` +
       `(el nuevo horario se ajustó manualmente en TeamUp)`;
 
