@@ -97,7 +97,7 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
           <p className="text-gray-900 font-semibold text-xl">
             Este servicio ya no está disponible
           </p>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 text-[15px]">
             Otro cleaner ya lo tomó. ¡Gracias por tu disponibilidad! Pronto habrá más servicios para ti.
           </p>
         </div>
@@ -110,10 +110,10 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
       <div className="max-w-4xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {/* Header with brand gradient */}
-          <div className="bg-gradient-primary px-6 py-8">
+          <div className="bg-[#1B74C4] px-6 py-8">
             {cityBadge && (
               <div className="inline-block bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
-                <span className="text-white text-sm font-medium">
+                <span className="text-white text-[15px] font-medium">
                   {cityBadge} {cityName}
                 </span>
               </div>
@@ -124,7 +124,7 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
             </h1>
 
             {event.cleaning_type && (
-              <p className="text-blue-100 text-lg">{event.cleaning_type}</p>
+              <p className="text-white/90 text-lg">{event.cleaning_type}</p>
             )}
           </div>
 
@@ -133,7 +133,7 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <InfoBox
                 icon="📍"
-                label="Direccion"
+                label="Dirección"
                 value={event.address}
               />
               <InfoBox
@@ -143,7 +143,7 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
               />
               <InfoBox
                 icon="⏱️"
-                label="Duracion"
+                label="Duración"
                 value={formatDuration(event.duration_hours)}
               />
               {event.frequency && (
@@ -167,13 +167,11 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
                   value={formatPhotosRequired(event.photos_required)}
                 />
               )}
-              {event.notas_mascotas && (
-                <InfoBox
-                  icon="🐾"
-                  label="Mascotas"
-                  value={event.notas_mascotas}
-                />
-              )}
+              <InfoBox
+                icon="🐾"
+                label="Mascotas"
+                value={valueIfMissingFrom(event.description_html, event.notas_mascotas, ['Mascota/s', 'Mascotas'])}
+              />
             </div>
 
             {/* Acceso a la propiedad — lo que el cleaner necesita al llegar */}
@@ -183,8 +181,8 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
                   Acceso a la propiedad
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InfoBox icon="🔑" label="Como entrar" value={acceso.entrar} />
-                  <InfoBox icon="🧭" label="Como llegar" value={acceso.llegar} />
+                  <InfoBox icon="🔑" label="Cómo entrar" value={acceso.entrar} />
+                  <InfoBox icon="🧭" label="Cómo llegar" value={acceso.llegar} />
                   <InfoBox icon="🅿️" label="Parqueadero" value={acceso.parqueadero} />
                   <InfoBox icon="🏢" label="Apartamento / unidad" value={acceso.apartamento} />
                 </div>
@@ -213,8 +211,8 @@ export default function EventDetails({ event, token, initialInvitation }: EventD
           {/* Footer */}
           <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
             <div className="text-center text-gray-600">
-              <p className="font-semibold text-lg text-primary">Clean and Shiny</p>
-              <p className="text-sm">Servicio profesional de limpieza</p>
+              <p className="font-semibold text-lg text-[#1B74C4]">Clean and Shiny</p>
+              <p className="text-[15px]">Servicio profesional de limpieza</p>
             </div>
           </div>
         </div>

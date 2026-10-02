@@ -1,8 +1,12 @@
+import { cache } from 'react';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getEventById, getInvitationSnapshot } from '@/lib/db';
+import { getEventById as leerEvento, getInvitationSnapshot } from '@/lib/db';
 import { sanitizeInstructionsHTML } from '@/lib/sanitize';
 import EventDetails from '@/components/EventDetails';
+
+// generateMetadata y la página piden el mismo evento: una sola consulta por visita.
+const getEventById = cache(leerEvento);
 
 interface PageProps {
   params: Promise<{ id: string }>;

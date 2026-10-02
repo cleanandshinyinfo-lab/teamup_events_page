@@ -124,7 +124,7 @@ export default function AcceptDeclineSection({
     return (
       <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
         <p className="text-gray-700 font-medium">{message}</p>
-        <p className="text-sm text-gray-500 mt-1">Si tienes alguna pregunta, contacta al equipo.</p>
+        <p className="text-[15px] text-gray-500 mt-1">Si tienes alguna pregunta, contacta al equipo.</p>
       </div>
     );
   }
@@ -134,8 +134,8 @@ export default function AcceptDeclineSection({
       <div className="mt-6 p-6 bg-green-50 rounded-xl border border-green-200 text-center space-y-2">
         <div className="text-4xl">✅</div>
         <p className="text-green-800 font-semibold text-lg">¡Servicio aceptado!</p>
-        <p className="text-green-700 text-sm">{message || 'El equipo ha sido notificado. ¡Gracias!'}</p>
-        <p className="text-xs text-green-600 mt-3">Este servicio desaparecerá de la lista en unos segundos...</p>
+        <p className="text-green-700 text-[15px]">{message || 'El equipo ha sido notificado. ¡Gracias!'}</p>
+        <p className="text-[15px] text-green-600 mt-3">Este servicio desaparecerá de la lista en unos segundos...</p>
       </div>
     );
   }
@@ -145,7 +145,7 @@ export default function AcceptDeclineSection({
       <div className="mt-6 p-6 bg-blue-50 rounded-xl border border-blue-200 text-center space-y-2">
         <div className="text-4xl">🕐</div>
         <p className="text-blue-800 font-semibold text-lg">¡Propuesta enviada!</p>
-        <p className="text-blue-700 text-sm">{message || 'Le avisamos al equipo a qué hora podrías llegar. Ellos coordinarán con el cliente.'}</p>
+        <p className="text-blue-700 text-[15px]">{message || 'Le avisamos al equipo a qué hora podrías llegar. Ellos coordinarán con el cliente.'}</p>
       </div>
     );
   }
@@ -155,7 +155,7 @@ export default function AcceptDeclineSection({
       <div className="mt-6 p-6 bg-gray-50 rounded-xl border border-gray-200 text-center space-y-2">
         <div className="text-3xl">👋</div>
         <p className="text-gray-800 font-semibold text-lg">Servicio rechazado</p>
-        <p className="text-gray-600 text-sm">{message || 'Gracias por avisarnos. El equipo buscará otra persona.'}</p>
+        <p className="text-gray-600 text-[15px]">{message || 'Gracias por avisarnos. El equipo buscará otra persona.'}</p>
       </div>
     );
   }
@@ -170,7 +170,7 @@ export default function AcceptDeclineSection({
         <p className={`font-semibold text-lg text-center ${isAssignFailed ? 'text-orange-800' : 'text-red-800'}`}>
           {isAssignFailed ? 'No se pudo asignar el servicio' : 'Error al procesar la respuesta'}
         </p>
-        <div className={`text-sm rounded-lg p-4 space-y-1 ${isAssignFailed ? 'bg-orange-100 text-orange-900' : 'bg-red-100 text-red-900'}`}>
+        <div className={`text-[15px] rounded-lg p-4 space-y-1 ${isAssignFailed ? 'bg-orange-100 text-orange-900' : 'bg-red-100 text-red-900'}`}>
           {lastAction && (
             <p><span className="font-semibold">El cleaner intentó:</span> {actionLabel}</p>
           )}
@@ -180,7 +180,7 @@ export default function AcceptDeclineSection({
         <div className="text-center">
           <button
             onClick={() => setStatus('idle')}
-            className={`text-sm underline ${isAssignFailed ? 'text-orange-700' : 'text-red-700'}`}
+            className={`text-[15px] underline ${isAssignFailed ? 'text-orange-700' : 'text-red-700'}`}
           >
             Intentar de nuevo
           </button>
@@ -192,7 +192,7 @@ export default function AcceptDeclineSection({
   return (
     <div className="mt-6 border-t border-gray-200 pt-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-2">¿Puedes tomar este servicio?</h2>
-      <p className="text-sm text-gray-500 mb-5">
+      <p className="text-[15px] text-gray-500 mb-5">
         Por favor confirma tu disponibilidad para atender este cliente.
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
@@ -238,7 +238,7 @@ export default function AcceptDeclineSection({
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-gray-900">¿A qué hora podrías llegar?</h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-[15px] text-gray-500">
               Escribe el horario al que sí podrías hacer este servicio. El equipo coordinará con el cliente.
             </p>
             <input
@@ -253,7 +253,7 @@ export default function AcceptDeclineSection({
                 if (e.key === 'Enter') submitProposedTime();
               }}
             />
-            {timeError && <p className="text-sm text-red-600">{timeError}</p>}
+            {timeError && <p className="text-[15px] text-red-600">{timeError}</p>}
             <div className="flex gap-3 pt-1">
               <button
                 onClick={() => setShowTimeModal(false)}

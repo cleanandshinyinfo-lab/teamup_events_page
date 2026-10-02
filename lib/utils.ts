@@ -29,8 +29,8 @@ export function formatDate(dateString: string | null): string {
   }
 }
 
-const SHORT_DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
 function parseLocalTimestamp(raw: string | null): { year: number; month: number; day: number; h: number; m: number } | null {
   if (!raw) return null;
@@ -52,18 +52,19 @@ function to12h(h: number, m: number): string {
 }
 
 /**
- * Formats start + end timestamps as "Fri Mar 13 2026, 8:30am - 12:30pm"
- * without any timezone conversion
+ * Formats start + end timestamps as "Viernes, 13 de marzo de 2026, de 8:30am a 12:30pm"
+ * (formato estándar de Clean & Shiny), without any timezone conversion
  */
 export function formatLocalDateTimeRange(start: string | null, end: string | null): string {
   const s = parseLocalTimestamp(start);
   if (!s) return 'No especificado';
   const d = new Date(Date.UTC(s.year, s.month - 1, s.day));
-  const datePart = `${SHORT_DAYS[d.getUTCDay()]} ${SHORT_MONTHS[s.month - 1]} ${s.day} ${s.year}`;
+  const dia = DIAS[d.getUTCDay()];
+  const datePart = `${dia.charAt(0).toUpperCase() + dia.slice(1)}, ${s.day} de ${MESES[s.month - 1]} de ${s.year}`;
   const startTime = to12h(s.h, s.m);
   const e = parseLocalTimestamp(end);
   const endTime = e ? to12h(e.h, e.m) : null;
-  return endTime ? `${datePart}, ${startTime} - ${endTime}` : `${datePart}, ${startTime}`;
+  return endTime ? `${datePart}, de ${startTime} a ${endTime}` : `${datePart}, a las ${startTime}`;
 }
 
 /** @deprecated use formatLocalDateTimeRange */

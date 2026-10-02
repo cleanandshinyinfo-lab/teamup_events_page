@@ -16,14 +16,14 @@ export default function InfoBox({ icon, label, value, className }: InfoBoxProps)
   return (
     <div
       className={cn(
-        'bg-blue-50 border-l-4 border-primary p-4 rounded-r-lg',
+        'bg-blue-50 border-l-4 border-[#1B74C4] p-4 rounded-r-lg',
         className
       )}
     >
       <div className="flex items-start gap-3">
         <span className="text-xl flex-shrink-0">{icon}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-700 mb-1">{label}</p>
+          <p className="text-[15px] font-semibold text-gray-700 mb-1">{label}</p>
           <p className="text-base text-gray-900 break-words">{value}</p>
         </div>
       </div>
