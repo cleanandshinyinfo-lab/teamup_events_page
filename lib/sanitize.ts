@@ -1,4 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
+import { achicada } from './fotos';
 
 const ALLOWED_TAGS = [
   'p', 'br', 'hr', 'span', 'div', 'strong', 'b', 'em', 'i', 'u',
@@ -10,7 +11,7 @@ const ALLOWED_TAGS = [
 // fotos solo les queda src y alt, y del estilo del resto solo pasan alineación y color (Mateo, 2-oct-2026).
 const ALLOWED_ATTR: Record<string, string[]> = {
   a: ['href', 'target', 'rel', 'class', 'style'],
-  img: ['src', 'alt', 'loading', 'decoding'],
+  img: ['src', 'alt', 'loading', 'decoding', 'data-original'],
   '*': ['class', 'style'],
 };
 
@@ -37,7 +38,8 @@ export function sanitizeInstructionsHTML(html: string | null): string | null {
       img: (_tagName, attribs) => ({
         tagName: 'img',
         attribs: {
-          src: attribs.src,
+          src: achicada(attribs.src, 828),
+          'data-original': attribs.src,
           alt: attribs.alt && !/\.(png|jpe?g|gif|webp)$/i.test(attribs.alt) ? attribs.alt : 'Foto',
           loading: 'lazy',
           decoding: 'async',
