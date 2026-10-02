@@ -132,6 +132,16 @@ a:hover {
   list-style: circle;
   margin-bottom: 0;
 }
+/* TeamUp envuelve cada dato en <ul><li><ul><li>: sin esto salían dos viñetas por renglón ("• ◦"). */
+.instructions-content li:has(> ul:only-child),
+.instructions-content li:has(> ol:only-child) {
+  list-style: none;
+  margin-bottom: 0;
+}
+.instructions-content li:has(> ul:only-child) > ul {
+  list-style: disc;
+  padding-left: 0;
+}
 .instructions-content li {
   margin-bottom: 0.4rem;
 }
