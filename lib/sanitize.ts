@@ -23,7 +23,7 @@ const ALLOWED_STYLES = {
 
 // Párrafos vacíos (espacios, &nbsp;, <br> o etiquetas vacías) que dejaban huecos grandes entre fotos. Se quitan
 // después de limpiar, para no llevarse una foto que viene dentro de <em> o <strong>.
-const PARRAFO_VACIO = /<p>(?:\s|&nbsp;|<br\s*\/?>|<(strong|em|b|i|u|span)>(?:\s|&nbsp;)*<\/\1>)*<\/p>/g;
+const PARRAFO_VACIO = /<p(?:\s[^>]*)?>(?:\s|&nbsp;|<br\s*\/?>|<(strong|em|b|i|u|span)>(?:\s|&nbsp;)*<\/\1>)*<\/p>/g;
 
 export function sanitizeInstructionsHTML(html: string | null): string | null {
   if (!html) return null;
@@ -48,5 +48,9 @@ export function sanitizeInstructionsHTML(html: string | null): string | null {
     exclusiveFilter: (frame) => frame.tag === 'p' && frame.text.toLowerCase().includes('pedir este servicio'),
   });
 
-  return limpio.replace(PARRAFO_VACIO, '');
+  // TeamUp deja espacios y &nbsp; pegados a las fotos: abrían una línea vacía debajo de cada una.
+  return limpio
+    .replace(/(<img[^>]*>)(?:\s|&nbsp;)+/g, '$1')
+    .replace(/(?:\s|&nbsp;)+(<img)/g, '$1')
+    .replace(PARRAFO_VACIO, '');
 }
